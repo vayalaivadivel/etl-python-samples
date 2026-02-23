@@ -1,4 +1,4 @@
-name: "Terraform Infrastructure"
+name: "ETL Infrastructure Setup/Destroy"
 
 on:
   workflow_dispatch:
@@ -21,7 +21,7 @@ on:
           - destroy
 
 jobs:
-  terraform:
+  terraform-etl-env-setup:
     runs-on: ubuntu-latest
     env:
       TF_VERSION: 1.7.6
