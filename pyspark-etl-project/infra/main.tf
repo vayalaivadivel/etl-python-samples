@@ -84,12 +84,20 @@ resource "aws_security_group" "rds_sg" {
   name        = "rds-sg"
   vpc_id      = aws_vpc.main.id
   description = "Allow MySQL from EC2"
-  ingress { 
-    from_port = 3306
-    to_port = 3306
-    protocol = "tcp"
-    security_groups = [aws_security_group.ec2_sg.id] 
+  
+  ingress {
+    from_port   = 3306
+    to_port     = 3306
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
   }
+  
+#   ingress { 
+#     from_port = 3306
+#     to_port = 3306
+#     protocol = "tcp"
+#     security_groups = [aws_security_group.ec2_sg.id] 
+#   }
   egress  { 
     from_port = 0
     to_port = 0
@@ -177,7 +185,10 @@ resource "aws_instance" "pyspark_ec2" {
 # RDS
 resource "aws_db_subnet_group" "rds_subnet" {
   name       = "rds-subnet-group"
-  subnet_ids = [aws_subnet.private-subnet1.id, aws_subnet.private-subnet2.id]
+  subnet_ids = [
+    aws_subnet.public_subnet1.id,
+    aws_subnet.public-subnet2.id
+  ]
   tags       = { Name = "rds-subnets" }
 }
 
@@ -195,4 +206,19 @@ resource "aws_db_instance" "mysql_rds" {
   vpc_security_group_ids = [aws_security_group.rds_sg.id]
   skip_final_snapshot    = true
   publicly_accessible    = true
+}
+
+resource "null_resource" "init_db" {
+
+  depends_on = [aws_db_instance.mysql_rds]
+
+  provisioner "local-exec" {
+    command = <<EOT
+      mysql -h ${aws_db_instance.mysql_rds.address} \
+      -P 3306 \
+      -u ${var.rds_username} \
+      -p${var.rds_password} \
+      < schema.sql
+    EOT
+  }
 }
