@@ -45,17 +45,6 @@ resource "aws_route_table_association" "public_assoc" {
   route_table_id = aws_route_table.public.id
 }
 
-
-# CSV schema definitions
-variable "csv_files" {
-  description = "List of CSV files with target table and schema"
-  type = list(object({
-    file_name  = string
-    table_name = string
-    columns    = list(object({ name = string, type = string }))
-  }))
-}
-
 # EC2 Security Group
 resource "aws_security_group" "ec2_sg" {
   name        = "ec2-sg"
@@ -102,7 +91,7 @@ resource "aws_s3_bucket" "csv_bucket" {
   bucket = "pyspark-public-csv-${random_id.bucket_id.hex}"
   acl    = "public-read-write"
   versioning { enabled = true }
-  
+
   tags = { Name = "public-csv-bucket" }
 }
 
