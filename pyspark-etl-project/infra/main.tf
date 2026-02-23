@@ -84,25 +84,19 @@ resource "aws_security_group" "rds_sg" {
 }
 
 
-# S3
-#----------------------------------------
-# Random suffix for bucket
-#----------------------------------------
+
+# Generate a random suffix for unique bucket names
 resource "random_id" "bucket_id" {
   byte_length = 4
 }
 
-#----------------------------------------
 # S3 Bucket
-#----------------------------------------
 resource "aws_s3_bucket" "csv_bucket" {
   bucket = "pyspark-public-csv-${random_id.bucket_id.hex}"
-  # Do NOT set acl, BucketOwnerEnforced prevents it
+  # No ACL
 }
 
-#----------------------------------------
 # Enable Versioning
-#----------------------------------------
 resource "aws_s3_bucket_versioning" "csv_bucket_versioning" {
   bucket = aws_s3_bucket.csv_bucket.id
   versioning_configuration {
@@ -110,9 +104,7 @@ resource "aws_s3_bucket_versioning" "csv_bucket_versioning" {
   }
 }
 
-#----------------------------------------
 # Block Public Access
-#----------------------------------------
 resource "aws_s3_bucket_public_access_block" "csv_bucket_block" {
   bucket = aws_s3_bucket.csv_bucket.id
 
@@ -120,32 +112,6 @@ resource "aws_s3_bucket_public_access_block" "csv_bucket_block" {
   block_public_policy     = true
   ignore_public_acls      = true
   restrict_public_buckets = true
-}
-
-#----------------------------------------
-# Optional: IAM-based access policy
-#----------------------------------------
-# Remove public access; grant access only to specific IAM roles/users
-# Example: allow your ETL role to read/write
-resource "aws_s3_bucket_policy" "iam_policy" {
-  bucket = aws_s3_bucket.csv_bucket.id
-  policy = jsonencode({
-    Version = "2012-10-17",
-    Statement = [
-      {
-        Sid       = "AllowETLUserAccess",
-        Effect    = "Allow",
-        Principal = {
-          AWS = "arn:aws:iam::091756093438:role/etl-role"  # replace with your role
-        },
-        Action   = ["s3:GetObject","s3:PutObject","s3:ListBucket"],
-        Resource = [
-          aws_s3_bucket.csv_bucket.arn,
-          "${aws_s3_bucket.csv_bucket.arn}/*"
-        ]
-      }
-    ]
-  })
 }
 
 
