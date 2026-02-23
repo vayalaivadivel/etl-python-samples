@@ -43,15 +43,19 @@ jobs:
             aws-region: "us-east-1"
 
       - name: Terraform Init
+        working-directory: pyspark-etl-project/infra
         run: terraform init -input=false
 
       - name: Terraform Plan
+        working-directory: pyspark-etl-project/infra
         run: terraform plan -input=false -out=tfplan
 
       - name: Terraform Apply or Destroy
+        working-directory: pyspark-etl-project/infra
         if: ${{ github.event.inputs.action == 'apply' }}
         run: terraform apply -input=false -auto-approve tfplan
 
       - name: Terraform Destroy
+        working-directory: pyspark-etl-project/infra
         if: ${{ github.event.inputs.action == 'destroy' }}
         run: terraform destroy -input=false -auto-approve
