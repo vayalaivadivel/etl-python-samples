@@ -1,6 +1,6 @@
-CREATE DATABASE IF NOT EXISTS pysparkdb;
+CREATE DATABASE IF NOT EXISTS etldb;
 
-USE pysparkdb;
+USE etldb;
 
 CREATE TABLE IF NOT EXISTS inc5000_companies (
     _input VARCHAR(255),

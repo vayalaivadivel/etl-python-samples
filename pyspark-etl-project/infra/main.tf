@@ -1,4 +1,3 @@
-
 # VPC
 resource "aws_vpc" "main" {
   cidr_block           = var.vpc_cidr
@@ -206,19 +205,4 @@ resource "aws_db_instance" "mysql_rds" {
   vpc_security_group_ids = [aws_security_group.rds_sg.id]
   skip_final_snapshot    = true
   publicly_accessible    = true
-}
-
-resource "null_resource" "init_db" {
-
-  depends_on = [aws_db_instance.mysql_rds]
-
-  provisioner "local-exec" {
-    command = <<EOT
-      mysql -h ${aws_db_instance.mysql_rds.address} \
-      -P 3306 \
-      -u ${var.rds_username} \
-      -p${var.rds_password} \
-      < schema.sql
-    EOT
-  }
 }
