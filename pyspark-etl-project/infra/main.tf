@@ -102,6 +102,7 @@ resource "aws_s3_bucket" "csv_bucket" {
   bucket = "pyspark-public-csv-${random_id.bucket_id.hex}"
   acl    = "public-read-write"
   versioning { enabled = true }
+  
   tags = { Name = "public-csv-bucket" }
 }
 
@@ -146,7 +147,7 @@ data "aws_ami" "ubuntu" {
   most_recent = true
   owners      = ["099720109477"]
   filter { 
-    name = "name";
+    name = "name"
     values = ["ubuntu/images/hvm-ssd/ubuntu-focal-20.04-amd64-server-*"] 
   }
 }
