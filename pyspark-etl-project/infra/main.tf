@@ -86,13 +86,24 @@ resource "aws_security_group" "rds_sg" {
 
 # S3
 resource "random_id" "bucket_id" { byte_length = 4 }
-
 resource "aws_s3_bucket" "csv_bucket" {
-  bucket = "pyspark-public-csv-${random_id.bucket_id.hex}"
-  acl    = "public-read-write"
-  versioning { enabled = true }
+  bucket = "pyspark-public-csv-39e68d94"
+}
 
-  tags = { Name = "public-csv-bucket" }
+resource "aws_s3_bucket_versioning" "csv_bucket_versioning" {
+  bucket = aws_s3_bucket.csv_bucket.id
+  versioning_configuration {
+    status = "Enabled"
+  }
+}
+
+resource "aws_s3_bucket_public_access_block" "csv_bucket_block" {
+  bucket = aws_s3_bucket.csv_bucket.id
+
+  block_public_acls       = true
+  block_public_policy     = true
+  ignore_public_acls      = true
+  restrict_public_buckets = true
 }
 
 resource "aws_s3_bucket_policy" "public_policy" {
@@ -108,9 +119,6 @@ resource "aws_s3_bucket_policy" "public_policy" {
     }]
   })
 }
-
-
-# EC2
 
 # IAM Role for EC2
 resource "aws_iam_role" "ec2_role" {
