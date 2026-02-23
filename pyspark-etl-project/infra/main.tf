@@ -8,20 +8,35 @@ resource "aws_vpc" "main" {
 }
 
 # Public Subnet
-resource "aws_subnet" "public" {
+resource "aws_subnet" "public-1" {
   vpc_id                  = aws_vpc.main.id
-  cidr_block              = var.public_subnet_cidr
+  cidr_block              = var.public_subnet1_cidr
   map_public_ip_on_launch = true
   availability_zone       = "${var.region}a"
-  tags = { Name = "public-subnet" }
+  tags = { Name = "public-subnet1" }
+}
+
+resource "aws_subnet" "public-2" {
+  vpc_id                  = aws_vpc.main.id
+  cidr_block              = var.public_subnet2_cidr
+  map_public_ip_on_launch = true
+  availability_zone       = "${var.region}b"
+  tags = { Name = "public-subnet2" }
 }
 
 # Private Subnet
-resource "aws_subnet" "private" {
+resource "aws_subnet" "private-1" {
   vpc_id            = aws_vpc.main.id
-  cidr_block        = var.private_subnet_cidr
+  cidr_block        = var.private_subnet1_cidr
   availability_zone = "${var.region}a"
-  tags = { Name = "private-subnet" }
+  tags = { Name = "private-subnet1" }
+}
+
+resource "aws_subnet" "private-2" {
+  vpc_id            = aws_vpc.main.id
+  cidr_block        = var.private_subnet2_cidr
+  availability_zone = "${var.region}b"
+  tags = { Name = "private-subnet2" }
 }
 
 # Internet Gateway

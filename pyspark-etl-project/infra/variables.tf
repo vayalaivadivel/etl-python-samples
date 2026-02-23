@@ -6,8 +6,11 @@ variable "region" {
 }
 
 variable "vpc_cidr" { default = "10.0.0.0/16" }
-variable "public_subnet_cidr" { default = "10.0.1.0/24" }
-variable "private_subnet_cidr" { default = "10.0.2.0/24" }
+variable "public_subnet1_cidr" { default = "10.0.0.0/18" }
+variable "public_subnet2_cidr" { default = "10.0.64.0/18" }
+variable "private_subnet1_cidr" { default = "10.0.128.0/18" }
+variable "private_subnet2_cidr" { default = "10.0.192.0/18" }
+
 
 variable "ec2_key_name" { 
     description = "EC2 key pair name" 

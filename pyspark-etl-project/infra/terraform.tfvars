@@ -1,5 +1,5 @@
 region          = "us-east-1"
-ec2_key_name    = "my-key"
+ec2_key_name    = "common-key"
 rds_username    = "admin"
 rds_password    = "StrongPassword123"
 vpc_cidr        = "10.0.0.0/16"
