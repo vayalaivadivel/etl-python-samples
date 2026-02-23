@@ -20,3 +20,5 @@ variable "ec2_key_name" {
 }
 variable "rds_username" { type = string }
 variable "rds_password" { type = string }
+
+variable "instance_type" { type = string }
