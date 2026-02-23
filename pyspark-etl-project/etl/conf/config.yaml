@@ -1,0 +1,10 @@
+rds:
+  host: pysparkdb-instance.cmx8sca08m6d.us-east-1.rds.amazonaws.com
+  port: 3306
+  database: etldb
+  user: admin
+  password: StrongPassword123  # ideally override with GitHub Secrets
+
+s3:
+  bucket: pyspark-public-csv-fbc5c8b0
+  key: company_list_23021239.csv

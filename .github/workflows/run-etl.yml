@@ -1,0 +1,32 @@
+name: Run PySpark ETL
+
+on:
+  workflow_dispatch:
+
+jobs:
+  deploy-etl:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v3
+
+    - name: Setup SSH key
+      uses: webfactory/ssh-agent@v0.9.0
+      with:
+        ssh-private-key: ${{ secrets.EC2_PRIVATE_KEY }}
+
+    - name: Copy ETL code to EC2
+      run: |
+        ssh -o StrictHostKeyChecking=no ubuntu@${{ secrets.EC2_PUBLIC_IP }} "mkdir -p ~/pyspark-etl-project/etl/src"
+        scp -o StrictHostKeyChecking=no -r etl/src etl/conf etl/jars etl/requirements.txt etl/submit.sh ubuntu@${{ secrets.EC2_PUBLIC_IP }}:~/pyspark-etl-project/etl/
+
+    - name: Install Python dependencies on EC2
+      run: |
+        ssh -o StrictHostKeyChecking=no ubuntu@${{ secrets.EC2_PUBLIC_IP }} \
+        "sudo apt update && sudo apt install -y python3-pip openjdk-11-jdk && pip3 install -r ~/pyspark-etl-project/etl/requirements.txt"
+
+    - name: Run PySpark ETL on EC2
+      run: |
+        ssh -o StrictHostKeyChecking=no ubuntu@${{ secrets.EC2_PUBLIC_IP }} \
+        "~/pyspark-etl-project/etl/submit.sh"
