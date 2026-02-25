@@ -1,7 +1,7 @@
-import pyspark
-from pyspark.sql import SparkSession, functions as F
+import os
 import yaml
-import sys
+from pyspark.sql import SparkSession, functions as F
+from sqlalchemy import create_engine
 
 # -----------------------------
 # Load configuration
@@ -9,7 +9,12 @@ import sys
 with open("conf/config.yaml", "r") as f:
     config = yaml.safe_load(f)
 
-s3_path = config["s3"]["csv_path"]
+# S3 Config
+s3_bucket = config["s3"]["bucket"]
+s3_key = config["s3"]["key"]
+s3_path = f"s3a://{s3_bucket}/{s3_key}"
+
+# RDS Config
 rds = config["rds"]
 
 # -----------------------------
@@ -17,6 +22,7 @@ rds = config["rds"]
 # -----------------------------
 spark = SparkSession.builder \
     .appName("ETL S3 to RDS") \
+    .config("spark.hadoop.fs.s3a.impl", "org.apache.hadoop.fs.s3a.S3AFileSystem") \
     .getOrCreate()
 
 # -----------------------------
@@ -25,24 +31,22 @@ spark = SparkSession.builder \
 df = spark.read.option("header", True).csv(s3_path)
 
 # -----------------------------
-# Cast columns to match MySQL
+# Cast columns
 # -----------------------------
 df = df.withColumn("_num", F.col("_num").cast("int")) \
        .withColumn("_resultNumber", F.col("_resultNumber").cast("int")) \
        .withColumn("id", F.col("id").cast("int")) \
-       .withColumn("rank_", F.col("rank").cast("int")) \
+       .withColumn("rank", F.col("rank").cast("int")) \
        .withColumn("workers", F.col("workers").cast("int")) \
        .withColumn("growth", F.col("growth").cast("double")) \
        .withColumn("yrs_on_list", F.col("yrs_on_list").cast("int"))
-
-# Rename 'rank' to 'rank_' to avoid MySQL reserved keyword issues
-df = df.drop("rank").withColumnRenamed("rank_", "rank")
 
 # -----------------------------
 # JDBC properties
 # -----------------------------
 jdbc_url = f"jdbc:mysql://{rds['host']}:{rds['port']}/{rds['database']}"
-properties = {
+
+connection_properties = {
     "user": rds["user"],
     "password": rds["password"],
     "driver": "com.mysql.cj.jdbc.Driver"
@@ -75,18 +79,23 @@ CREATE TABLE IF NOT EXISTS companies (
 )
 """
 
-# Connect via JDBC and create table
-from sqlalchemy import create_engine
-import pymysql
+engine = create_engine(
+    f"mysql+pymysql://{rds['user']}:{rds['password']}@{rds['host']}:{rds['port']}/{rds['database']}"
+)
 
-engine = create_engine(f"mysql+pymysql://{rds['user']}:{rds['password']}@{rds['host']}:{rds['port']}/{rds['database']}")
 with engine.connect() as conn:
     conn.execute(create_table_sql)
 
 # -----------------------------
-# Write data to RDS
+# Write to MySQL RDS
 # -----------------------------
-df.write.jdbc(url=jdbc_url, table="companies", mode="append", properties=properties)
+df.write.jdbc(
+    url=jdbc_url,
+    table="companies",
+    mode="append",
+    properties=connection_properties
+)
 
-print("ETL completed successfully!")
+print("✅ ETL completed successfully!")
+
 spark.stop()
