@@ -7,6 +7,9 @@ jobs:
   deploy-etl:
     runs-on: ubuntu-latest
 
+    env:
+      EC2_IP: ${{ secrets.EC2_PUBLIC_IP }}
+
     steps:
     - name: Checkout repository
       uses: actions/checkout@v3
@@ -18,27 +21,30 @@ jobs:
 
     - name: Copy ETL project to EC2
       run: |
-        ssh -o StrictHostKeyChecking=no ubuntu@${{ secrets.EC2_PUBLIC_IP }} \
-          "mkdir -p ~/pyspark-etl-project"
+        echo "Creating project folder on EC2..."
+        ssh -o StrictHostKeyChecking=no ubuntu@$EC2_IP "mkdir -p ~/pyspark-etl-project"
 
-        scp -o StrictHostKeyChecking=no -r pyspark-etl-project/etl \
-          ubuntu@${{ secrets.EC2_PUBLIC_IP }}:~/pyspark-etl-project/
+        echo "Copying ETL code to EC2..."
+        scp -o StrictHostKeyChecking=no -r pyspark-etl-project/etl ubuntu@$EC2_IP:~/pyspark-etl-project/
 
-    - name: Install Python dependencies (if needed)
+    - name: Install Python dependencies
       run: |
-        ssh -o StrictHostKeyChecking=no ubuntu@${{ secrets.EC2_PUBLIC_IP }} \
-        "pip3 install --user -r ~/pyspark-etl-project/etl/requirements.txt"
+        echo "Installing Python dependencies on EC2..."
+        ssh -o StrictHostKeyChecking=no ubuntu@$EC2_IP \
+          "pip3 install --user -r ~/pyspark-etl-project/etl/requirements.txt"
 
     - name: Run PySpark ETL on EC2
       run: |
-        ssh -o StrictHostKeyChecking=no ubuntu@${{ secrets.EC2_PUBLIC_IP }} << 'EOF'
-          set -e   # stop if any command fails
-
+        echo "Starting PySpark ETL..."
+        ssh -o StrictHostKeyChecking=no ubuntu@$EC2_IP << 'EOF'
+          set -e   # Exit immediately if any command fails
+          
           cd ~/pyspark-etl-project/etl
 
+          echo "Running spark-submit..."
           spark-submit \
             --packages org.apache.hadoop:hadoop-aws:3.3.2,mysql:mysql-connector-java:8.0.33 \
             etl.py
 
-          echo "ETL JOB COMPLETED SUCCESSFULLY"
+          echo "✅ ETL JOB COMPLETED SUCCESSFULLY"
         EOF
