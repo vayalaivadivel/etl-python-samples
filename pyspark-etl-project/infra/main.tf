@@ -29,22 +29,38 @@ resource "aws_route_table" "public_rt" {
   }
 
   tags = {
-    Name = "public-rt"
+    Name = "public-rt1"
   }
 }
-
-
 
 resource "aws_route_table_association" "public_assoc1" {
   subnet_id      = aws_subnet.public1.id
   route_table_id = aws_route_table.public_rt.id
 }
 
+
+resource "aws_subnet" "public2" {
+  vpc_id                  = aws_vpc.main.id
+  cidr_block              = var.public_subnet2_cidr
+  availability_zone       = data.aws_availability_zones.available.names[1]  # second AZ
+  map_public_ip_on_launch = true
+  tags = {
+    Name = "public-subnet2"
+  }
+}
+
+
+resource "aws_route_table_association" "public_assoc2" {
+  subnet_id      = aws_subnet.public2.id
+  route_table_id = aws_route_table.public_rt.id
+}
+
+
 data "aws_availability_zones" "available" {}
 
 resource "aws_db_subnet_group" "rds_subnet" {
-  name       = "rds-public-subnet"
-  subnet_ids = [aws_subnet.public1.id]
+  name       = "rds-public-subnet-group"
+  subnet_ids = [aws_subnet.public1.id, aws_subnet.public2.id]
 
   tags = {
     Name = "rds-public-subnet-group"
