@@ -3,7 +3,7 @@ terraform {
 
   backend "s3" {
     bucket         = "vadivel-tf-state-buc"
-    key            = "first-etl/dev/terraform.tfstate"  # path in S3
+    key            = "ami-list/terraform.tfstate"  # path in S3
     region         = "us-east-1"
     encrypt        = true
   }

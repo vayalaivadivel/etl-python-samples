@@ -6,203 +6,99 @@ resource "aws_vpc" "main" {
   tags = { Name = "pyspark-vpc" }
 }
 
-# Public Subnet
-resource "aws_subnet" "public_subnet1" {
-  vpc_id                  = aws_vpc.main.id
-  cidr_block              = var.public_subnet1_cidr
-  map_public_ip_on_launch = true
-  availability_zone       = "${var.region}a"
-  tags = { Name = "public-subnet1" }
-}
-
-resource "aws_subnet" "public-subnet2" {
-  vpc_id                  = aws_vpc.main.id
-  cidr_block              = var.public_subnet2_cidr
-  map_public_ip_on_launch = true
-  availability_zone       = "${var.region}b"
-  tags = { Name = "public-subnet2" }
-}
-
-# Private Subnet
-resource "aws_subnet" "private-subnet1" {
-  vpc_id            = aws_vpc.main.id
-  cidr_block        = var.private_subnet1_cidr
-  availability_zone = "${var.region}a"
-  tags = { Name = "private-subnet1" }
-}
-
-resource "aws_subnet" "private-subnet2" {
-  vpc_id            = aws_vpc.main.id
-  cidr_block        = var.private_subnet2_cidr
-  availability_zone = "${var.region}b"
-  tags = { Name = "private-subnet2" }
-}
-
-# Internet Gateway
 resource "aws_internet_gateway" "igw" {
   vpc_id = aws_vpc.main.id
-  tags   = { Name = "main-igw" }
 }
 
-# Route Table
-resource "aws_route_table" "public" {
+resource "aws_subnet" "public1" {
+  vpc_id                  = aws_vpc.main.id
+  cidr_block              = var.public_subnet1_cidr
+  availability_zone       = data.aws_availability_zones.available.names[0]
+  map_public_ip_on_launch = true
+  tags = {
+  Name = "public-subnet1"
+}
+}
+
+resource "aws_route_table" "public_rt" {
   vpc_id = aws_vpc.main.id
+
   route {
     cidr_block = "0.0.0.0/0"
     gateway_id = aws_internet_gateway.igw.id
   }
-  tags = { Name = "public-rt" }
-}
 
-resource "aws_route_table_association" "public_assoc" {
-  subnet_id      = aws_subnet.public_subnet1.id
-  route_table_id = aws_route_table.public.id
-}
-
-# EC2 Security Group
-resource "aws_security_group" "ec2_sg" {
-  name        = "ec2-sg"
-  vpc_id      = aws_vpc.main.id
-  description = "Allow SSH and outbound"
-  ingress {
-         from_port = 22
-         to_port = 22
-         protocol = "tcp"
-         cidr_blocks = ["0.0.0.0/0"] 
-    }
-  egress  { 
-    from_port = 0
-    to_port = 0
-    protocol = "-1"
-    cidr_blocks = ["0.0.0.0/0"] 
+  tags = {
+    Name = "public-rt"
   }
 }
 
-# RDS Security Group
+
+
+resource "aws_route_table_association" "public_assoc1" {
+  subnet_id      = aws_subnet.public1.id
+  route_table_id = aws_route_table.public_rt.id
+}
+
+data "aws_availability_zones" "available" {}
+
+resource "aws_db_subnet_group" "rds_subnet" {
+  name       = "rds-public-subnet"
+  subnet_ids = [aws_subnet.public1.id]
+
+  tags = {
+    Name = "rds-public-subnet-group"
+  }
+}
+
+
+# ---------------------------
+# Security Group (Public MySQL Access)
+# ---------------------------
 resource "aws_security_group" "rds_sg" {
-  name        = "rds-sg"
+  name        = "rds-mysql-public-sg"
+  description = "Allow MySQL inbound"
   vpc_id      = aws_vpc.main.id
-  description = "Allow MySQL from EC2"
-  
+
   ingress {
     from_port   = 3306
     to_port     = 3306
     protocol    = "tcp"
+    cidr_blocks = ["92.97.19.251/32"]  # 🔥 Replace with your IP (IMPORTANT)
+  }
+
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
     cidr_blocks = ["0.0.0.0/0"]
   }
-  
-#   ingress { 
-#     from_port = 3306
-#     to_port = 3306
-#     protocol = "tcp"
-#     security_groups = [aws_security_group.ec2_sg.id] 
-#   }
-  egress  { 
-    from_port = 0
-    to_port = 0
-    protocol = "-1"
-    cidr_blocks = ["0.0.0.0/0"] 
-  }
 }
 
-
-
-# Generate a random suffix for unique bucket names
-resource "random_id" "bucket_id" {
-  byte_length = 4
-}
-
-# S3 Bucket
-resource "aws_s3_bucket" "csv_bucket" {
-  bucket = "pyspark-public-csv-${random_id.bucket_id.hex}"
-  # No ACL
-}
-
-# Enable Versioning
-resource "aws_s3_bucket_versioning" "csv_bucket_versioning" {
-  bucket = aws_s3_bucket.csv_bucket.id
-  versioning_configuration {
-    status = "Enabled"
-  }
-}
-
-# Block Public Access
-resource "aws_s3_bucket_public_access_block" "csv_bucket_block" {
-  bucket = aws_s3_bucket.csv_bucket.id
-
-  block_public_acls       = true
-  block_public_policy     = true
-  ignore_public_acls      = true
-  restrict_public_buckets = true
-}
-
-
-
-
-# IAM Role for EC2
-resource "aws_iam_role" "ec2_role" {
-  name = "ec2-s3-access"
-  assume_role_policy = jsonencode({
-    Version = "2012-10-17",
-    Statement = [{ Action = "sts:AssumeRole", Effect = "Allow", Principal = { Service = "ec2.amazonaws.com" } }]
-  })
-}
-
-resource "aws_iam_role_policy_attachment" "ec2_s3_attach" {
-  role       = aws_iam_role.ec2_role.name
-  policy_arn = "arn:aws:iam::aws:policy/AmazonS3FullAccess"
-}
-
-resource "aws_iam_instance_profile" "ec2_profile" {
-  name = "ec2-s3-profile"
-  role = aws_iam_role.ec2_role.name
-}
-
-# EC2 Instance
-data "aws_ami" "ubuntu" {
-  most_recent = true
-  owners      = ["099720109477"]
-  filter { 
-    name = "name"
-    values = ["ubuntu/images/hvm-ssd/ubuntu-focal-20.04-amd64-server-*"] 
-  }
-}
-
-resource "aws_instance" "pyspark_ec2" {
-  ami                    = data.aws_ami.ubuntu.id
-  instance_type          = var.instance_type
-  subnet_id              = aws_subnet.public_subnet1.id
-  key_name               = var.ec2_key_name
-  vpc_security_group_ids = [aws_security_group.ec2_sg.id]
-  iam_instance_profile   = aws_iam_instance_profile.ec2_profile.name
-  tags = { Name = "PySpark-EC2" }
-
-  user_data = file("install_python.sh")
-}
-
-
-# RDS
-resource "aws_db_subnet_group" "rds_subnet" {
-  name       = "rds-subnet-group"
-  subnet_ids = [
-    aws_subnet.public_subnet1.id,
-    aws_subnet.public-subnet2.id
-  ]
-  tags       = { Name = "rds-subnets" }
-}
-
+# ---------------------------
+# RDS MySQL Instance
+# ---------------------------
 resource "aws_db_instance" "mysql_rds" {
-  allocated_storage      = 20
-  storage_type           = "gp3"
-  engine                 = "mysql"
-  engine_version         = "8.0"
-  instance_class         = "db.t3.micro"
-  identifier             = "pysparkdb-instance"
- # name                   = "pysparkdb"
-  username               = var.rds_username
-  password               = var.rds_password
-  db_subnet_group_name   = aws_db_subnet_group.rds_subnet.name
-  vpc_security_group_ids = [aws_security_group.rds_sg.id]
-  skip_final_snapshot    = true
-  publicly_accessible    = true
+  identifier              = "lowcost-mysql"
+  engine                  = "mysql"
+  engine_version          = "8.0"
+  instance_class          = "db.t3.micro"
+  allocated_storage       = 20
+  storage_type            = "gp3"
+
+  db_name                 = var.db_name
+  username                = var.rds_username
+  password                = var.rds_password   # use secrets manager in real prod
+
+  publicly_accessible     = true
+  skip_final_snapshot     = true
+  vpc_security_group_ids  = [aws_security_group.rds_sg.id]
+
+  backup_retention_period = 0  # 🔥 Disable backup to save cost
+  multi_az                = false
+
+  db_subnet_group_name = aws_db_subnet_group.rds_subnet.name
+  tags = {
+  Name = "etl-mysql-rds"
+}
 }
