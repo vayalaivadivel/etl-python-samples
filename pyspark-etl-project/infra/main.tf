@@ -141,7 +141,7 @@ resource "aws_security_group" "ec2_sg" {
 }
 
 resource "aws_instance" "public_ec2" {
-  ami                         = "ami-0210bc5bf67ac22e0"   # Your custom PySpark AMI
+  ami                         = var.custom_ami_id  # Your custom PySpark AMI
   instance_type               = "t2.micro"
   subnet_id                   = aws_subnet.public1.id
   vpc_security_group_ids      = [aws_security_group.ec2_sg.id]

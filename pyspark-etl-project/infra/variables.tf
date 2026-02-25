@@ -28,7 +28,8 @@ variable "my_ip_cidr" {
   type        = string
 }
 
-variable "my_ip_cidr" {
+
+variable "custom_ami_id" {
   description = "Your public IP with /32 suffix for RDS access"
   type        = string
 }
