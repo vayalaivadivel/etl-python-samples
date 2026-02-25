@@ -22,3 +22,13 @@ variable "rds_username" { type = string }
 variable "rds_password" { type = string }
 
 variable "instance_type" { type = string }
+
+variable "my_ip_cidr" {
+  description = "Your public IP with /32 suffix for RDS access"
+  type        = string
+}
+
+variable "my_ip_cidr" {
+  description = "Your public IP with /32 suffix for RDS access"
+  type        = string
+}

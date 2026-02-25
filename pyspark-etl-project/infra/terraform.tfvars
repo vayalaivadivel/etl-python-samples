@@ -11,3 +11,4 @@ private_subnet1_cidr = "10.0.3.0/24"   # AZ 1
 private_subnet2_cidr = "10.0.4.0/24"   # AZ 2
 instance_type = "t3.medium"
 db_name="etl"
+my_ip_cidr = "92.97.19.251/32"

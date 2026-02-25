@@ -1,52 +1,64 @@
 packer {
   required_plugins {
     amazon = {
-      version = ">= 1.0.0"
       source  = "github.com/hashicorp/amazon"
+      version = ">= 1.8.0"
     }
   }
 }
 
-variable "aws_region" { default = "us-east-1" }
 
-source "amazon-ebs" "python_pyspark_etl" {
-  region               = var.aws_region
-  ami_name             = "python-pyspark-etl-{{timestamp}}"
-  instance_type        = "t3.medium"
-  subnet_id            = "subnet-052166c21a4f8dcef" # your subnet
-  iam_instance_profile = "Packer-SSM-Role"
+source "amazon-ebs" "pyspark_mysql" {
+  ami_name                    = "pyspark-mysql-{{timestamp}}"
+  instance_type               = "t3.medium"
+  region                      = "us-east-1"
+  vpc_id                      = "vpc-0b6151bb9b43b3c35"
+  subnet_id                   = "subnet-0cb1611a792ee89d9"
+  
+  # --- USE PUBLIC IP TO BYPASS SSM HANGS ---
+  associate_public_ip_address = true
+  ssh_interface               = "public_ip" 
+  ssh_username                = "ubuntu"
+  ssh_timeout                 = "15m"
 
-  communicator = "session_manager"
-  ssh_username = "ubuntu"
+  # Tells Packer to open Port 22 only for your local machine's IP
+  temporary_security_group_source_public_ip = true
 
   source_ami_filter {
     filters = {
-      name                = "ubuntu/images/hvm-ssd/ubuntu-jammy-22.04-amd64-server-*"
+      name                = "ubuntu/images/hvm-ssd/ubuntu-focal-20.04-amd64-server-*"
       root-device-type    = "ebs"
       virtualization-type = "hvm"
     }
     most_recent = true
-    owners      = ["099720109477"]
-  }
-
-  tags = {
-    Name        = "python-pyspark-etl-ami"
-    Environment = "dev"
+    owners      = ["099720109477"] 
   }
 }
 
 build {
-  sources = ["source.amazon-ebs.python_pyspark_etl"]
+  sources = ["source.amazon-ebs.pyspark_mysql"]
 
-  provisioner "shell" {
+     provisioner "shell" {
     inline = [
+      "echo '>>> Waiting for cloud-init...'",
+      "sleep 30",
       "sudo apt-get update -y",
-      "sudo apt-get upgrade -y",
-      "sudo apt-get install -y python3 python3-pip openjdk-17-jdk scala git wget mysql-client",
-      "sudo -H pip3 install --upgrade pip",
-      "sudo -H pip3 install pyspark boto3 pandas sqlalchemy pymysql",
-      "sudo mkdir -p /home/ubuntu/etl_project/{src,conf,logs}",
-      "sudo chown -R ubuntu:ubuntu /home/ubuntu/etl_project"
+      "sudo apt-get install -y python3-pip openjdk-11-jdk-headless curl",
+      
+      # 1. Install PySpark and MySQL Python libraries
+      "echo '>>> Installing Python libraries...'",
+      "pip3 install pyspark mysql-connector-python",
+      
+      # 2. Download MySQL JDBC Driver using CURL (Direct to destination)
+      "echo '>>> Downloading MySQL JDBC Driver...'",
+      "sudo mkdir -p /opt/spark/jars",
+      "sudo curl -L -o /opt/spark/jars/mysql-connector-j-8.3.0.jar https://repo1.maven.org",
+      
+      # 3. Final verification
+      "echo '>>> Verifying installation...'",
+      "python3 -c 'import pyspark; print(\"PySpark: OK\")'",
+      "if [ -f /opt/spark/jars/mysql-connector-j-8.3.0.jar ]; then echo 'JAR: OK'; else echo 'JAR: MISSING'; exit 1; fi"
     ]
   }
+
 }

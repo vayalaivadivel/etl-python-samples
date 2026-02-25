@@ -80,7 +80,7 @@ resource "aws_security_group" "rds_sg" {
     from_port   = 3306
     to_port     = 3306
     protocol    = "tcp"
-    cidr_blocks = ["92.97.19.251/32"]  # 🔥 Replace with your IP (IMPORTANT)
+    cidr_blocks = [var.my_ip_cidr]  # 🔥 Replace with your IP (IMPORTANT)
   }
 
   egress {
@@ -117,4 +117,38 @@ resource "aws_db_instance" "mysql_rds" {
   tags = {
   Name = "etl-mysql-rds"
 }
+}
+
+resource "aws_security_group" "ec2_sg" {
+  name        = "public-ec2-sg"
+  description = "Allow SSH access"
+  vpc_id      = aws_vpc.main.id
+
+  ingress {
+    description = "SSH from my IP"
+    from_port   = 22
+    to_port     = 22
+    protocol    = "tcp"
+    cidr_blocks = [var.my_ip_cidr]   # Your public IP only
+  }
+
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+}
+
+resource "aws_instance" "public_ec2" {
+  ami                         = "ami-0210bc5bf67ac22e0"   # Your custom PySpark AMI
+  instance_type               = "t2.micro"
+  subnet_id                   = aws_subnet.public1.id
+  vpc_security_group_ids      = [aws_security_group.ec2_sg.id]
+  associate_public_ip_address = true
+  key_name                    = var.ec2_key_name
+
+  tags = {
+    Name = "pyspark-custom-ec2"
+  }
 }
