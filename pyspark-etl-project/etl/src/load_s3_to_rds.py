@@ -121,9 +121,7 @@ try:
         `yrs_on_list` INT
     )
     """
-    engine = create_engine(
-        f"mysql+pymysql://{rds_user}:{rds_password}@{rds_host}:{rds_port}/{rds_db}"
-    )
+    engine = create_engine(f"mysql+pymysql://{rds_user}:{rds_password}@{rds_host}:{rds_port}/{rds_db}")
     with engine.connect() as conn:
         conn.execute(create_table_sql)
     log("Table `companies` created or verified successfully")
