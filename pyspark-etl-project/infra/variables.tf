@@ -33,3 +33,9 @@ variable "custom_ami_id" {
   description = "Your public IP with /32 suffix for RDS access"
   type        = string
 }
+
+variable "env" {
+  description = "Deployment environment (dev/prod)"
+  type        = string
+  default     = "dev"
+}
