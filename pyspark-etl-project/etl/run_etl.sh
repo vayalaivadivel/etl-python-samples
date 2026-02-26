@@ -17,37 +17,56 @@ mkdir -p "$LOG_DIR"
 TIMESTAMP=$(date +%F_%H%M%S)
 LOG_FILE="$LOG_DIR/etl_$TIMESTAMP.log"
 
-echo "Starting ETL job at $(date)..."
-echo "Logs: $LOG_FILE"
+echo "==========================================="
+echo "Starting ETL job at $(date)"
+echo "Log file: $LOG_FILE"
+echo "==========================================="
 
 # -----------------------------
-# Install Python dependencies
+# Install system dependencies (only if missing)
 # -----------------------------
-echo "Installing Python dependencies..."
+echo "Checking system dependencies..."
+
 sudo apt update -y
 sudo apt install -y python3-pip openjdk-11-jdk
+
 pip3 install --upgrade pip
 
 if [ -f "$REQUIREMENTS_FILE" ]; then
+    echo "Installing Python dependencies..."
     pip3 install --upgrade -r "$REQUIREMENTS_FILE"
 else
-    echo "⚠️ requirements.txt not found. Skipping dependency installation."
+    echo "⚠️ requirements.txt not found. Skipping."
 fi
 
 # -----------------------------
-# Run ETL using spark-submit (CORRECT WAY)
+# Spark dependency packages (SAFE WAY)
 # -----------------------------
-echo "Running ETL script with Spark..."
+export PYSPARK_SUBMIT_ARGS="--packages \
+org.apache.hadoop:hadoop-aws:3.3.6,\
+com.amazonaws:aws-java-sdk-bundle:1.12.544 \
+pyspark-shell"
+
+# -----------------------------
+# Run ETL via spark-submit
+# -----------------------------
+echo "Submitting Spark job..."
 
 spark-submit \
-  --packages org.apache.hadoop:hadoop-aws:3.3.4,com.amazonaws:aws-java-sdk-bundle:1.12.262 \
+  --master local[*] \
+  --conf spark.driver.memory=2g \
+  --conf spark.executor.memory=2g \
   "$ETL_SCRIPT" 2>&1 | tee -a "$LOG_FILE"
 
 EXIT_CODE=${PIPESTATUS[0]}
 
 if [ $EXIT_CODE -eq 0 ]; then
+    echo "==========================================="
     echo "✅ ETL completed successfully"
+    echo "==========================================="
 else
+    echo "==========================================="
     echo "❌ ETL failed. Check logs: $LOG_FILE"
+    echo "==========================================="
     exit $EXIT_CODE
 fi
