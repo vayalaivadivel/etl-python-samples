@@ -2,57 +2,90 @@
 set -e
 
 # ---------------------------
+# Log file for full output
+# ---------------------------
+LOG_FILE="/tmp/setup.log"
+echo "EC2 setup started at $(date)" > $LOG_FILE
+
+# Helper function to echo and log
+log() {
+    echo "$1"
+    echo "$1" >> $LOG_FILE 2>&1
+}
+
+# ---------------------------
 # Update system packages
 # ---------------------------
-sudo yum update -y
+log "Updating system packages..."
+sudo yum update -y >> $LOG_FILE 2>&1
 
 # ---------------------------
 # Install Java 17 (Amazon Corretto)
 # ---------------------------
-sudo amazon-linux-extras enable corretto17 -y
-sudo yum install -y java-17-amazon-corretto-devel
+if ! java -version &>/dev/null; then
+    log "Installing Java 17..."
+    sudo amazon-linux-extras enable corretto17 -y >> $LOG_FILE 2>&1
+    sudo yum install -y java-17-amazon-corretto-devel >> $LOG_FILE 2>&1
+fi
 
 # ---------------------------
-# Install Python 3 and pip
+# Install Python 3
 # ---------------------------
-sudo yum install -y python3 python3-devel
-sudo alternatives --install /usr/bin/python python /usr/bin/python3 1
-sudo alternatives --install /usr/bin/pip pip /usr/bin/pip3 1
-pip install --upgrade pip
+if ! python3 --version &>/dev/null; then
+    log "Installing Python 3..."
+    sudo yum install -y python3 python3-devel >> $LOG_FILE 2>&1
+    sudo alternatives --install /usr/bin/python python /usr/bin/python3 1 >> $LOG_FILE 2>&1
+    sudo alternatives --install /usr/bin/pip pip /usr/bin/pip3 1 >> $LOG_FILE 2>&1
+fi
+
+# Upgrade pip
+log "Upgrading pip..."
+pip install --upgrade pip >> $LOG_FILE 2>&1
 
 # ---------------------------
-# Install PySpark Python library
+# Install PySpark library
 # ---------------------------
-pip install pyspark
+log "Installing PySpark..."
+pip install pyspark >> $LOG_FILE 2>&1
 
 # ---------------------------
 # Install MySQL client / Python connector
 # ---------------------------
-sudo yum install -y mysql
-pip install PyMySQL==1.1.1
+log "Installing MySQL client and PyMySQL..."
+sudo yum install -y mysql >> $LOG_FILE 2>&1
+pip install PyMySQL==1.1.1 >> $LOG_FILE 2>&1
 
 # ---------------------------
-# Install Apache Spark CLI (spark-submit)
+# Install full Apache Spark CLI for spark-submit
 # ---------------------------
 SPARK_VERSION="3.5.1"
 HADOOP_VERSION="3"
 SPARK_DIR="/opt/spark"
 
-# Download Spark binary with Hadoop support
-sudo mkdir -p $SPARK_DIR
-sudo curl -L https://downloads.apache.org/spark/spark-$SPARK_VERSION/spark-$SPARK_VERSION-bin-hadoop$HADOOP_VERSION.tgz \
-    | sudo tar -xz -C $SPARK_DIR --strip-components=1
+if [ ! -d "$SPARK_DIR" ]; then
+    log "Installing Apache Spark CLI..."
+    sudo mkdir -p $SPARK_DIR >> $LOG_FILE 2>&1
+    sudo curl -L https://downloads.apache.org/spark/spark-$SPARK_VERSION/spark-$SPARK_VERSION-bin-hadoop$HADOOP_VERSION.tgz \
+        | sudo tar -xz -C $SPARK_DIR --strip-components=1 >> $LOG_FILE 2>&1
+fi
 
 # Add Spark to PATH
-echo "export SPARK_HOME=$SPARK_DIR" >> ~/.bashrc
-echo "export PATH=\$SPARK_HOME/bin:\$PATH" >> ~/.bashrc
+if ! grep -q "SPARK_HOME" ~/.bashrc; then
+    log "Adding Spark to PATH..."
+    echo "export SPARK_HOME=$SPARK_DIR" >> ~/.bashrc
+    echo "export PATH=\$SPARK_HOME/bin:\$PATH" >> ~/.bashrc
+fi
 source ~/.bashrc
 
+# ---------------------------
 # Verify installations
-echo "✅ Python version: $(python --version)"
-echo "✅ Java version: $(java -version)"
-echo "✅ PySpark version: $(python -c 'import pyspark; print(pyspark.__version__)')"
-echo "✅ Spark-submit version: $(spark-submit --version)"
-echo "✅ MySQL client version: $(mysql --version)"
+# ---------------------------
+log "Verifying installations..."
+log "✅ Python version: $(python --version 2>&1)"
+log "✅ Java version: $(java -version 2>&1 | head -n 1)"
+log "✅ PySpark version: $(python -c 'import pyspark; print(pyspark.__version__)' 2>&1)"
+log "✅ Spark-submit version: $(spark-submit --version 2>&1 | head -n 1)"
+log "✅ MySQL client version: $(mysql --version 2>&1)"
 
-echo "✅ EC2 setup completed successfully."
+log "✅ EC2 setup completed successfully."
+log "Full log is saved at $LOG_FILE"
