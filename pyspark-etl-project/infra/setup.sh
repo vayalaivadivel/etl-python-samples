@@ -25,15 +25,17 @@ if [ ! -d "$SPARK_HOME" ]; then
     wget -q https://downloads.apache.org/spark/spark-${SPARK_VERSION}/spark-${SPARK_VERSION}-bin-hadoop${HADOOP_VERSION}.tgz -O $SPARK_TGZ
     sudo tar -xzf $SPARK_TGZ -C /opt
     sudo mv /opt/spark-${SPARK_VERSION}-bin-hadoop${HADOOP_VERSION} $SPARK_HOME
-    sudo chown -R ubuntu:ubuntu $SPARK_HOME   # Make it accessible to ubuntu user
+    sudo chown -R ubuntu:ubuntu $SPARK_HOME
 fi
 
 # -----------------------------
 # 3️⃣ Persist environment variables in .bashrc
 # -----------------------------
-echo "export JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64" >> /home/ubuntu/.bashrc
-echo "export SPARK_HOME=$SPARK_HOME" >> /home/ubuntu/.bashrc
-echo "export PATH=\$JAVA_HOME/bin:\$SPARK_HOME/bin:\$PATH" >> /home/ubuntu/.bashrc
+BASHRC="/home/ubuntu/.bashrc"
+
+grep -qxF 'export JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64' $BASHRC || echo 'export JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64' >> $BASHRC
+grep -qxF "export SPARK_HOME=$SPARK_HOME" $BASHRC || echo "export SPARK_HOME=$SPARK_HOME" >> $BASHRC
+grep -qxF 'export PATH=$JAVA_HOME/bin:$SPARK_HOME/bin:$PATH' $BASHRC || echo 'export PATH=$JAVA_HOME/bin:$SPARK_HOME/bin:$PATH' >> $BASHRC
 
 # -----------------------------
 # 4️⃣ Apply environment for this session
@@ -43,7 +45,7 @@ export SPARK_HOME=$SPARK_HOME
 export PATH=$JAVA_HOME/bin:$SPARK_HOME/bin:$PATH
 
 # -----------------------------
-# 5️⃣ Create ETL & logs folder
+# 5️⃣ Create ETL & logs folders
 # -----------------------------
 mkdir -p $ETL_DIR
 mkdir -p $LOG_DIR
@@ -53,6 +55,6 @@ chown -R ubuntu:ubuntu $ETL_DIR $LOG_DIR
 # 6️⃣ Install Python packages for ETL
 # -----------------------------
 pip3 install --upgrade pip
-pip3 install pyspark boto3 pandas   # Optional, if your ETL uses Python
+pip3 install pyspark boto3 pandas
 
-echo "✅ EC2 bootstrap complete: Java, Spark, Python, pip packages, logs folder ready, environment variables set."
+echo "✅ EC2 bootstrap complete: Java, Spark, Python packages installed, logs folder ready, environment variables set."
