@@ -4,7 +4,7 @@ set -e
 # -----------------------------
 # Paths
 # -----------------------------
-PROJECT_DIR=~/pyspark-etl-project
+PROJECT_DIR=~/pyspark-etl-project/etl
 ETL_SCRIPT="$PROJECT_DIR/src/load_s3_to_rds.py"
 LOG_DIR="$PROJECT_DIR/logs"
 mkdir -p "$LOG_DIR"
