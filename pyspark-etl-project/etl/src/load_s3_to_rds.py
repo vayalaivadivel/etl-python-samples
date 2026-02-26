@@ -5,7 +5,7 @@ from pyspark.sql import SparkSession, functions as F
 from sqlalchemy import create_engine
 from datetime import datetime
 import boto3
-from botocore.exceptions import NoCredentialsError, PartialCredentialsError, ClientError
+from botocore.exceptions import ClientError
 
 # -----------------------------
 # Prepare logs
@@ -29,49 +29,27 @@ try:
         config = yaml.safe_load(f)
 
     # -----------------------------
-    # AWS Credentials
-    # -----------------------------
-    aws_access_key = os.getenv("AWS_ACCESS_KEY_ID")
-    aws_secret_key = os.getenv("AWS_SECRET_ACCESS_KEY")
-    aws_region = os.getenv("AWS_DEFAULT_REGION", None)
-
-    # If env variables not set, try config.yaml
-    if not aws_access_key or not aws_secret_key:
-        if "access_key" in config["s3"] and "secret_key" in config["s3"]:
-            aws_access_key = config["s3"]["access_key"]
-            aws_secret_key = config["s3"]["secret_key"]
-            aws_region = config["s3"].get("region", "us-east-1")
-            log("AWS credentials loaded from config.yaml")
-        else:
-            log("No AWS credentials found in environment or config.yaml, assuming IAM role...")
-            aws_region = config["s3"].get("region", "us-east-1")
-
-    # Set environment variables for Spark and boto3
-    if aws_access_key and aws_secret_key:
-        os.environ["AWS_ACCESS_KEY_ID"] = aws_access_key
-        os.environ["AWS_SECRET_ACCESS_KEY"] = aws_secret_key
-    if aws_region:
-        os.environ["AWS_DEFAULT_REGION"] = aws_region
-
-    # -----------------------------
-    # Test S3 bucket access (specific bucket only)
+    # S3 bucket and path
     # -----------------------------
     s3_bucket = config["s3"]["bucket"]
     s3_key = config["s3"]["key"]
     s3_path = f"s3a://{s3_bucket}/{s3_key}"
 
+    # -----------------------------
+    # Verify S3 bucket access using IAM role
+    # -----------------------------
     s3_client = boto3.client("s3")
     try:
         s3_client.head_bucket(Bucket=s3_bucket)
-        log(f"AWS S3 bucket '{s3_bucket}' access verified")
-    except (NoCredentialsError, PartialCredentialsError, ClientError) as e:
-        log(f"⚠️ Unable to verify access to bucket '{s3_bucket}': {e}")
+        log(f"✅ Access verified to S3 bucket '{s3_bucket}' using IAM role")
+    except ClientError as e:
+        log(f"❌ Unable to access S3 bucket '{s3_bucket}': {e}")
         raise
 
     log(f"S3 path: {s3_path}")
 
     # -----------------------------
-    # RDS config
+    # RDS configuration
     # -----------------------------
     rds = config["rds"]
     rds_user = os.getenv("MYSQL_USER", rds["user"])
