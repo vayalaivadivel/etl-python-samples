@@ -22,45 +22,13 @@ jobs:
     - name: Copy ETL project to EC2
       run: |
         ssh -o StrictHostKeyChecking=no ubuntu@$EC2_IP "mkdir -p ~/pyspark-etl-project"
-        scp -o StrictHostKeyChecking=no -r pyspark-etl-project/etl ubuntu@$EC2_IP:~/pyspark-etl-project/
+        scp -o StrictHostKeyChecking=no -r pyspark-etl-project/* ubuntu@$EC2_IP:~/pyspark-etl-project/
 
-    - name: Run PySpark ETL on EC2 with logs
+    - name: Run ETL on EC2
       run: |
         ssh -o StrictHostKeyChecking=no ubuntu@$EC2_IP << 'EOF'
           set -e
-          cd ~/pyspark-etl-project/etl
-
-          # Create logs folder
-          mkdir -p logs
-
-          # Timestamped log file
-          TIMESTAMP=$(date +%F_%H%M%S)
-          LOG_FILE="logs/etl_${TIMESTAMP}.log"
-
-          echo "Starting ETL at $(date)..."
-          spark-submit \
-            --packages org.apache.hadoop:hadoop-aws:3.3.2,mysql:mysql-connector-java:8.0.33 \
-            src/load_s3_to_rds.py \
-            > "$LOG_FILE" 2>&1
-
-          if [ $? -eq 0 ]; then
-            echo "✅ ETL completed successfully"
-          else
-            echo "❌ ETL failed, check logs: $LOG_FILE"
-            exit 1
-          fi
-
-          echo "$LOG_FILE"
-        EOF > last_log_path.txt
-
-    - name: Download ETL log from EC2
-      run: |
-        LOG_FILE=$(cat last_log_path.txt)
-        mkdir -p etl_logs
-        scp -o StrictHostKeyChecking=no ubuntu@$EC2_IP:~/pyspark-etl-project/etl/$LOG_FILE ./etl_logs/
-
-    - name: Upload ETL log as artifact
-      uses: actions/upload-artifact@v4
-      with:
-        name: etl-log
-        path: etl_logs/
+          cd ~/pyspark-etl-project
+          chmod +x run_etl.sh
+          ./run_etl.sh
+        EOF

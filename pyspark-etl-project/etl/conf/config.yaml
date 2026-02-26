@@ -1,10 +1,21 @@
+# -----------------------------
+# RDS Database
+# -----------------------------
 rds:
   host: lowcost-mysql.cmx8sca08m6d.us-east-1.rds.amazonaws.com
   port: 3306
   database: etl
-  user: *******
-  password: ****!  # ideally override with GitHub Secrets
+  user: admin
+  password: Admin12345!  # optionally override with environment variables
 
+# -----------------------------
+# S3 Bucket
+# -----------------------------
 s3:
-  bucket: vadivel-data-engineer  
+  bucket: vadivel-data-engineer
   key: my-company-list/company_list_23021239.csv
+
+# Optional AWS credentials (if not using IAM role)
+# access_key: YOUR_AWS_ACCESS_KEY
+# secret_key: YOUR_AWS_SECRET_KEY
+# region: us-east-1

@@ -140,6 +140,54 @@ resource "aws_security_group" "ec2_sg" {
   }
 }
 
+# IAM role for EC2 to access S3
+resource "aws_iam_role" "ec2_s3_role" {
+  name = "ec2-s3-access-role"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect = "Allow"
+      Principal = {
+        Service = "ec2.amazonaws.com"
+      }
+      Action = "sts:AssumeRole"
+    }]
+  })
+}
+
+# IAM policy for S3 read-only access
+resource "aws_iam_policy" "s3_read_policy" {
+  name        = "EC2S3ReadOnlyPolicy"
+  description = "Allow EC2 to read objects from S3 bucket"
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect   = "Allow"
+        Action   = ["s3:GetObject", "s3:ListBucket"]
+        Resource = [
+          "arn:aws:s3:::vadivel-data-engineer",
+          "arn:aws:s3:::vadivel-data-engineer/*"
+        ]
+      }
+    ]
+  })
+}
+
+# Attach policy to role
+resource "aws_iam_role_policy_attachment" "attach_s3_policy" {
+  role       = aws_iam_role.ec2_s3_role.name
+  policy_arn = aws_iam_policy.s3_read_policy.arn
+}
+
+# Create instance profile
+resource "aws_iam_instance_profile" "ec2_instance_profile" {
+  name = "ec2-s3-instance-profile"
+  role = aws_iam_role.ec2_s3_role.name
+}
+
 resource "aws_instance" "public_ec2" {
   ami                         = var.custom_ami_id  # Your custom PySpark AMI
   instance_type               = "t2.micro"
@@ -147,6 +195,9 @@ resource "aws_instance" "public_ec2" {
   vpc_security_group_ids      = [aws_security_group.ec2_sg.id]
   associate_public_ip_address = true
   key_name                    = var.ec2_key_name
+
+  # Attach the IAM instance profile
+  iam_instance_profile        = aws_iam_instance_profile.ec2_instance_profile.name
 
   tags = {
     Name = "pyspark-custom-ec2"
