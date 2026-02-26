@@ -33,7 +33,7 @@ jobs:
           echo "Running spark-submit..."
           spark-submit \
             --packages org.apache.hadoop:hadoop-aws:3.3.2,mysql:mysql-connector-java:8.0.33 \
-            etl.py
+            src/load_s3_to_rds.py
 
           echo "✅ ETL JOB COMPLETED SUCCESSFULLY"
         EOF
