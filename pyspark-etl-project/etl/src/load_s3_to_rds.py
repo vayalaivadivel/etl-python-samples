@@ -36,7 +36,7 @@ try:
     s3_path = f"s3a://{s3_bucket}/{s3_key}"
 
     # -----------------------------
-    # Verify S3 bucket access using IAM role
+    # Verify S3 bucket access via IAM role
     # -----------------------------
     s3_client = boto3.client("s3")
     try:
@@ -59,11 +59,13 @@ try:
     rds_db = os.getenv("MYSQL_DATABASE", rds["database"])
 
     # -----------------------------
-    # Initialize Spark session
+    # Initialize Spark session with proper S3A IAM role
     # -----------------------------
     spark = SparkSession.builder \
         .appName("ETL S3 to RDS") \
         .config("spark.hadoop.fs.s3a.impl", "org.apache.hadoop.fs.s3a.S3AFileSystem") \
+        .config("spark.hadoop.fs.s3a.aws.credentials.provider", "com.amazonaws.auth.InstanceProfileCredentialsProvider") \
+        .config("spark.hadoop.fs.s3a.path.style.access", "true") \
         .getOrCreate()
     log("Spark session initialized")
 

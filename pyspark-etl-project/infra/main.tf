@@ -67,6 +67,21 @@ resource "aws_db_subnet_group" "rds_subnet" {
   }
 }
 
+data "aws_ami" "ubuntu" {
+  most_recent = true
+  owners      = ["099720109477"]   # Canonical
+
+  filter {
+    name   = "name"
+    values = ["ubuntu/images/hvm-ssd/ubuntu-jammy-22.04-amd64-server-*"]
+  }
+
+  filter {
+    name   = "virtualization-type"
+    values = ["hvm"]
+  }
+}
+
 
 # ---------------------------
 # Security Group (Public MySQL Access)
@@ -189,13 +204,12 @@ resource "aws_iam_instance_profile" "ec2_instance_profile" {
 }
 
 resource "aws_instance" "public_ec2" {
-  ami                         = var.custom_ami_id  # Your custom PySpark AMI
-  instance_type               = "t2.micro"
+  ami                         = data.aws_ami.ubuntu.id # Your custom PySpark AMI
+  instance_type               = var.instance_type
   subnet_id                   = aws_subnet.public1.id
   vpc_security_group_ids      = [aws_security_group.ec2_sg.id]
   associate_public_ip_address = true
   key_name                    = var.ec2_key_name
-
   # Attach the IAM instance profile
   iam_instance_profile        = aws_iam_instance_profile.ec2_instance_profile.name
 

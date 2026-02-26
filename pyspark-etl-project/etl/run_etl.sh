@@ -8,8 +8,9 @@ PROJECT_DIR=~/pyspark-etl-project/etl
 ETL_SCRIPT="$PROJECT_DIR/src/load_s3_to_rds.py"
 LOG_DIR="$PROJECT_DIR/logs"
 REQUIREMENTS_FILE="$PROJECT_DIR/requirements.txt"
+SPARK_JARS_DIR="$PROJECT_DIR/spark-jars"
 
-mkdir -p "$LOG_DIR"
+mkdir -p "$LOG_DIR" "$SPARK_JARS_DIR"
 
 # -----------------------------
 # Timestamped log
@@ -23,12 +24,11 @@ echo "Log file: $LOG_FILE"
 echo "==========================================="
 
 # -----------------------------
-# Install system dependencies (only if missing)
+# Install system dependencies
 # -----------------------------
-echo "Checking system dependencies..."
-
+echo "Installing system dependencies..."
 sudo apt update -y
-sudo apt install -y python3-pip openjdk-11-jdk
+sudo apt install -y python3-pip openjdk-11-jdk wget
 
 pip3 install --upgrade pip
 
@@ -40,18 +40,32 @@ else
 fi
 
 # -----------------------------
-# Spark dependency packages (SAFE WAY)
+# Download Hadoop & AWS JARs for s3a
 # -----------------------------
-export PYSPARK_SUBMIT_ARGS="--packages \
-org.apache.hadoop:hadoop-aws:3.3.6,\
-com.amazonaws:aws-java-sdk-bundle:1.12.544 \
+echo "Downloading Hadoop and AWS JARs..."
+JARS=(
+  "https://repo1.maven.org/maven2/org/apache/hadoop/hadoop-aws/3.3.6/hadoop-aws-3.3.6.jar"
+  "https://repo1.maven.org/maven2/org/apache/hadoop/hadoop-common/3.3.6/hadoop-common-3.3.6.jar"
+  "https://repo1.maven.org/maven2/com/amazonaws/aws-java-sdk-bundle/1.12.544/aws-java-sdk-bundle-1.12.544.jar"
+)
+
+for jar in "${JARS[@]}"; do
+    wget -nc -P "$SPARK_JARS_DIR" "$jar"
+done
+
+# -----------------------------
+# Set Spark submit args with Hadoop & AWS JARs
+# -----------------------------
+export PYSPARK_SUBMIT_ARGS="--jars \
+$SPARK_JARS_DIR/hadoop-aws-3.3.6.jar,\
+$SPARK_JARS_DIR/hadoop-common-3.3.6.jar,\
+$SPARK_JARS_DIR/aws-java-sdk-bundle-1.12.544.jar \
 pyspark-shell"
 
 # -----------------------------
 # Run ETL via spark-submit
 # -----------------------------
 echo "Submitting Spark job..."
-
 spark-submit \
   --master local[*] \
   --conf spark.driver.memory=2g \
