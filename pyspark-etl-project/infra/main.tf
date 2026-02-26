@@ -67,22 +67,6 @@ resource "aws_db_subnet_group" "rds_subnet" {
   }
 }
 
-data "aws_ami" "ubuntu" {
-  most_recent = true
-  owners      = ["099720109477"]   # Canonical
-
-  filter {
-    name   = "name"
-    values = ["ubuntu/images/hvm-ssd/ubuntu-jammy-22.04-amd64-server-*"]
-  }
-
-  filter {
-    name   = "virtualization-type"
-    values = ["hvm"]
-  }
-}
-
-
 # ---------------------------
 # Security Group (Public MySQL Access)
 # ---------------------------
@@ -203,17 +187,42 @@ resource "aws_iam_instance_profile" "ec2_instance_profile" {
   role = aws_iam_role.ec2_s3_role.name
 }
 
+
+
+
+# ---------------------------
+# Amazon Linux 2 AMI Data
+# ---------------------------
+data "aws_ami" "amazon_linux" {
+  most_recent = true
+  owners      = ["137112412989"]  # Amazon
+
+  filter {
+    name   = "name"
+    values = ["amzn2-ami-hvm-*-x86_64-gp2"]  # Amazon Linux 2 HVM
+  }
+
+  filter {
+    name   = "virtualization-type"
+    values = ["hvm"]
+  }
+}
+
+# ---------------------------
+# EC2 Instance with Amazon Linux
+# ---------------------------
 resource "aws_instance" "public_ec2" {
-  ami                         = data.aws_ami.ubuntu.id # Your custom PySpark AMI
+  ami                         = data.aws_ami.amazon_linux.id
   instance_type               = var.instance_type
   subnet_id                   = aws_subnet.public1.id
   vpc_security_group_ids      = [aws_security_group.ec2_sg.id]
   associate_public_ip_address = true
   key_name                    = var.ec2_key_name
-  # Attach the IAM instance profile
   iam_instance_profile        = aws_iam_instance_profile.ec2_instance_profile.name
-  user_data = file("setup.sh")
+
+  user_data = file("setup.sh")  # your bootstrap script
+
   tags = {
-    Name = "pyspark-custom-ec2"
+    Name = "pyspark-amzn-ec2"
   }
 }

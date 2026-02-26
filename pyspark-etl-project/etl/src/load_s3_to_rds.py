@@ -2,7 +2,7 @@
 import os
 import yaml
 from pyspark.sql import SparkSession, functions as F
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, text
 from datetime import datetime
 import boto3
 from botocore.exceptions import ClientError
@@ -49,22 +49,23 @@ try:
     log(f"S3 path: {s3_path}")
 
     # -----------------------------
-    # RDS configuration
+    # RDS configuration from environment variables (safer in production)
     # -----------------------------
     rds = config["rds"]
     rds_user = os.getenv("MYSQL_USER", rds["user"])
     rds_password = os.getenv("MYSQL_PASSWORD", rds["password"])
     rds_host = os.getenv("MYSQL_HOST", rds["host"])
-    rds_port = os.getenv("MYSQL_PORT", rds["port"])
+    rds_port = os.getenv("MYSQL_PORT", str(rds.get("port", 3306)))
     rds_db = os.getenv("MYSQL_DATABASE", rds["database"])
 
     # -----------------------------
-    # Initialize Spark session with proper S3A IAM role
+    # Initialize Spark session
     # -----------------------------
     spark = SparkSession.builder \
         .appName("ETL S3 to RDS") \
         .config("spark.hadoop.fs.s3a.impl", "org.apache.hadoop.fs.s3a.S3AFileSystem") \
-        .config("spark.hadoop.fs.s3a.aws.credentials.provider", "com.amazonaws.auth.InstanceProfileCredentialsProvider") \
+        .config("spark.hadoop.fs.s3a.aws.credentials.provider",
+                "com.amazonaws.auth.InstanceProfileCredentialsProvider") \
         .config("spark.hadoop.fs.s3a.path.style.access", "true") \
         .getOrCreate()
     log("Spark session initialized")
@@ -76,19 +77,22 @@ try:
     log(f"Read {df.count()} rows from S3")
 
     # -----------------------------
-    # Cast columns
+    # Cast columns to correct types
     # -----------------------------
-    df = df.withColumn("_num", F.col("_num").cast("int")) \
-           .withColumn("_resultNumber", F.col("_resultNumber").cast("int")) \
-           .withColumn("id", F.col("id").cast("int")) \
-           .withColumn("rank", F.col("rank").cast("int")) \
-           .withColumn("workers", F.col("workers").cast("int")) \
-           .withColumn("growth", F.col("growth").cast("double")) \
-           .withColumn("yrs_on_list", F.col("yrs_on_list").cast("int"))
+    for col_name, col_type in {
+        "_num": "int",
+        "_resultNumber": "int",
+        "id": "int",
+        "rank": "int",
+        "workers": "int",
+        "growth": "double",
+        "yrs_on_list": "int"
+    }.items():
+        df = df.withColumn(col_name, F.col(col_name).cast(col_type))
     log("Columns casted successfully")
 
     # -----------------------------
-    # JDBC properties
+    # JDBC properties for RDS
     # -----------------------------
     jdbc_url = f"jdbc:mysql://{rds_host}:{rds_port}/{rds_db}"
     connection_properties = {
@@ -125,11 +129,11 @@ try:
     """
     engine = create_engine(f"mysql+pymysql://{rds_user}:{rds_password}@{rds_host}:{rds_port}/{rds_db}")
     with engine.connect() as conn:
-        conn.execute(create_table_sql)
+        conn.execute(text(create_table_sql))
     log("Table `companies` created or verified successfully")
 
     # -----------------------------
-    # Write to MySQL RDS
+    # Write to MySQL RDS via spark-submit compatible JDBC
     # -----------------------------
     df.write.jdbc(
         url=jdbc_url,

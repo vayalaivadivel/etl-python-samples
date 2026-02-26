@@ -1,66 +1,58 @@
 #!/bin/bash
 set -e
 
-# -----------------------------
-# Config
-# -----------------------------
+# ---------------------------
+# Update system packages
+# ---------------------------
+sudo yum update -y
+
+# ---------------------------
+# Install Java 17 (Amazon Corretto)
+# ---------------------------
+sudo amazon-linux-extras enable corretto17 -y
+sudo yum install -y java-17-amazon-corretto-devel
+
+# ---------------------------
+# Install Python 3 and pip
+# ---------------------------
+sudo yum install -y python3 python3-devel
+sudo alternatives --install /usr/bin/python python /usr/bin/python3 1
+sudo alternatives --install /usr/bin/pip pip /usr/bin/pip3 1
+pip install --upgrade pip
+
+# ---------------------------
+# Install PySpark Python library
+# ---------------------------
+pip install pyspark
+
+# ---------------------------
+# Install MySQL client / Python connector
+# ---------------------------
+sudo yum install -y mysql
+pip install PyMySQL==1.1.1
+
+# ---------------------------
+# Install Apache Spark CLI (spark-submit)
+# ---------------------------
 SPARK_VERSION="3.5.1"
 HADOOP_VERSION="3"
-SPARK_HOME="/opt/spark"
-LOG_DIR="/home/ubuntu/pyspark-etl-project/etl/logs"
-ETL_DIR="/home/ubuntu/pyspark-etl-project/etl"
+SPARK_DIR="/opt/spark"
 
-# -----------------------------
-# 1️⃣ Update system & install dependencies
-# -----------------------------
-apt update -y
-apt install -y python3-pip wget curl openjdk-17-jdk git unzip tar
+# Download Spark binary with Hadoop support
+sudo mkdir -p $SPARK_DIR
+sudo curl -L https://downloads.apache.org/spark/spark-$SPARK_VERSION/spark-$SPARK_VERSION-bin-hadoop$HADOOP_VERSION.tgz \
+    | sudo tar -xz -C $SPARK_DIR --strip-components=1
 
-# -----------------------------
-# 2️⃣ Download and install Spark (robust)
-# -----------------------------
-if [ ! -d "$SPARK_HOME" ]; then
-    echo "Installing Apache Spark..."
-    SPARK_TGZ="/tmp/spark-${SPARK_VERSION}-bin-hadoop${HADOOP_VERSION}.tgz"
-    
-    # Download with retries
-    wget --tries=5 --timeout=30 -O $SPARK_TGZ https://downloads.apache.org/spark/spark-${SPARK_VERSION}/spark-${SPARK_VERSION}-bin-hadoop${HADOOP_VERSION}.tgz
+# Add Spark to PATH
+echo "export SPARK_HOME=$SPARK_DIR" >> ~/.bashrc
+echo "export PATH=\$SPARK_HOME/bin:\$PATH" >> ~/.bashrc
+source ~/.bashrc
 
-    # Extract and move
-    sudo tar -xzf $SPARK_TGZ -C /opt
-    sudo mv /opt/spark-${SPARK_VERSION}-bin-hadoop${HADOOP_VERSION} $SPARK_HOME
+# Verify installations
+echo "✅ Python version: $(python --version)"
+echo "✅ Java version: $(java -version)"
+echo "✅ PySpark version: $(python -c 'import pyspark; print(pyspark.__version__)')"
+echo "✅ Spark-submit version: $(spark-submit --version)"
+echo "✅ MySQL client version: $(mysql --version)"
 
-    # Fix ownership & permissions
-    sudo chown -R ubuntu:ubuntu $SPARK_HOME
-    sudo chmod -R 755 $SPARK_HOME
-fi
-
-# -----------------------------
-# 3️⃣ Persist environment variables in .bashrc
-# -----------------------------
-BASHRC="/home/ubuntu/.bashrc"
-grep -qxF 'export JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64' $BASHRC || echo 'export JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64' >> $BASHRC
-grep -qxF "export SPARK_HOME=$SPARK_HOME" $BASHRC || echo "export SPARK_HOME=$SPARK_HOME" >> $BASHRC
-grep -qxF 'export PATH=$JAVA_HOME/bin:$SPARK_HOME/bin:$PATH' $BASHRC || echo 'export PATH=$JAVA_HOME/bin:$SPARK_HOME/bin:$PATH' >> $BASHRC
-
-# -----------------------------
-# 4️⃣ Apply environment for current session
-# -----------------------------
-export JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64
-export SPARK_HOME=$SPARK_HOME
-export PATH=$JAVA_HOME/bin:$SPARK_HOME/bin:$PATH
-
-# -----------------------------
-# 5️⃣ Create ETL & logs folders
-# -----------------------------
-mkdir -p $ETL_DIR
-mkdir -p $LOG_DIR
-chown -R ubuntu:ubuntu $ETL_DIR $LOG_DIR
-
-# -----------------------------
-# 6️⃣ Install Python packages for ETL (optional)
-# -----------------------------
-pip3 install --upgrade pip
-pip3 install pyspark boto3 pandas
-
-echo "✅ EC2 bootstrap complete: Java, Spark, Python packages installed, logs folder ready, environment variables set."
+echo "✅ EC2 setup completed successfully."
