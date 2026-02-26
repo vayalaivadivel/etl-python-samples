@@ -212,7 +212,7 @@ resource "aws_instance" "public_ec2" {
   key_name                    = var.ec2_key_name
   # Attach the IAM instance profile
   iam_instance_profile        = aws_iam_instance_profile.ec2_instance_profile.name
-
+  user_data = file("setup.sh")
   tags = {
     Name = "pyspark-custom-ec2"
   }
