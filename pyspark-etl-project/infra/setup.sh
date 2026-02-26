@@ -1,95 +1,93 @@
 #!/bin/bash
-set -e
+# -------------------------------------
+# EC2 User-Data Setup Script for PySpark ETL
+# -------------------------------------
+exec > >(tee /tmp/setup.log) 2>&1
+set -x
+
+echo "$(date '+%Y-%m-%d %H:%M:%S') | EC2 user-data setup started"
 
 # ---------------------------
-# Log file
+# Update system packages
 # ---------------------------
-LOG_FILE="/tmp/setup.log"
-echo "$(date '+%Y-%m-%d %H:%M:%S') | EC2 setup started" > $LOG_FILE
-
-# Helper function to log with timestamp
-log() {
-    echo "$(date '+%Y-%m-%d %H:%M:%S') | $1"
-    echo "$(date '+%Y-%m-%d %H:%M:%S') | $1" >> $LOG_FILE 2>&1
-}
-
-# ---------------------------
-# Update system
-# ---------------------------
-log "Updating system packages..."
-sudo yum clean all >> $LOG_FILE 2>&1
-sudo yum update -y >> $LOG_FILE 2>&1
+yum clean all
+yum update -y
 
 # ---------------------------
 # Install Python 3
 # ---------------------------
 if ! python3 --version &>/dev/null; then
-    log "Installing Python 3..."
-    sudo yum install -y python3 python3-devel >> $LOG_FILE 2>&1
-    sudo alternatives --install /usr/bin/python python /usr/bin/python3 1 >> $LOG_FILE 2>&1
-    sudo alternatives --install /usr/bin/pip pip /usr/bin/pip3 1 >> $LOG_FILE 2>&1
+    echo "$(date '+%Y-%m-%d %H:%M:%S') | Installing Python 3..."
+    yum install -y python3 python3-devel
+    alternatives --install /usr/bin/python python /usr/bin/python3 1
+    alternatives --install /usr/bin/pip pip /usr/bin/pip3 1
 fi
 
 # Upgrade pip
-log "Upgrading pip..."
-pip install --upgrade pip >> $LOG_FILE 2>&1
+echo "$(date '+%Y-%m-%d %H:%M:%S') | Upgrading pip..."
+pip install --upgrade pip
 
 # ---------------------------
 # Install Java 17
 # ---------------------------
 if ! java -version &>/dev/null; then
-    log "Installing Java 17 (Amazon Corretto)..."
-    sudo amazon-linux-extras enable corretto17 -y >> $LOG_FILE 2>&1 || true
-    sudo yum install -y java-17-amazon-corretto-devel >> $LOG_FILE 2>&1
+    echo "$(date '+%Y-%m-%d %H:%M:%S') | Installing Java 17 (Amazon Corretto)..."
+    amazon-linux-extras enable corretto17 -y || true
+    yum install -y java-17-amazon-corretto-devel
 fi
 
 # ---------------------------
-# Install PySpark library
+# Install PySpark
 # ---------------------------
-log "Installing PySpark..."
-pip install pyspark >> $LOG_FILE 2>&1
+echo "$(date '+%Y-%m-%d %H:%M:%S') | Installing PySpark..."
+pip install pyspark
 
 # ---------------------------
-# Install MySQL client + Python connector
+# Install MySQL client + PyMySQL
 # ---------------------------
-log "Installing MySQL client and PyMySQL..."
-sudo yum install -y mysql >> $LOG_FILE 2>&1
-pip install PyMySQL==1.1.1 >> $LOG_FILE 2>&1
+echo "$(date '+%Y-%m-%d %H:%M:%S') | Installing MySQL client and PyMySQL..."
+yum install -y mysql
+pip install PyMySQL==1.1.1
 
 # ---------------------------
-# Install Spark CLI (spark-submit)
+# Install Apache Spark CLI
 # ---------------------------
 SPARK_VERSION="3.5.1"
 HADOOP_VERSION="3"
 SPARK_DIR="/opt/spark"
 
 if [ ! -d "$SPARK_DIR" ]; then
-    log "Installing Apache Spark CLI..."
-    sudo mkdir -p $SPARK_DIR >> $LOG_FILE 2>&1
-    sudo curl -L https://downloads.apache.org/spark/spark-$SPARK_VERSION/spark-$SPARK_VERSION-bin-hadoop$HADOOP_VERSION.tgz \
-        | sudo tar -xz -C $SPARK_DIR --strip-components=1 >> $LOG_FILE 2>&1
+    echo "$(date '+%Y-%m-%d %H:%M:%S') | Installing Apache Spark CLI..."
+    mkdir -p $SPARK_DIR
+    curl -L https://downloads.apache.org/spark/spark-$SPARK_VERSION/spark-$SPARK_VERSION-bin-hadoop$HADOOP_VERSION.tgz \
+        | tar -xz -C $SPARK_DIR --strip-components=1
 fi
 
-# Add Spark to PATH
-if ! grep -q "SPARK_HOME" ~/.bashrc; then
-    log "Adding Spark to PATH..."
-    echo "export SPARK_HOME=$SPARK_DIR" >> ~/.bashrc
-    echo "export PATH=\$SPARK_HOME/bin:\$PATH" >> ~/.bashrc
-fi
-source ~/.bashrc
+# ---------------------------
+# Set system-wide environment variables
+# ---------------------------
+echo "$(date '+%Y-%m-%d %H:%M:%S') | Setting system-wide environment variables..."
+cat <<EOF > /etc/profile.d/spark.sh
+export SPARK_HOME=$SPARK_DIR
+export PATH=\$SPARK_HOME/bin:/usr/local/bin:/usr/bin:\$PATH
+EOF
+chmod +x /etc/profile.d/spark.sh
 
 # ---------------------------
 # Verify installations
 # ---------------------------
-log "Verifying installations..."
-log "✅ Python version: $(python --version 2>&1)"
-log "✅ Java version: $(java -version 2>&1 | head -n 1)"
-log "✅ PySpark version: $(python -c 'import pyspark; print(pyspark.__version__)' 2>&1)"
-log "✅ Spark-submit version: $(spark-submit --version 2>&1 | head -n 1)"
-log "✅ MySQL client version: $(mysql --version 2>&1)"
+echo "$(date '+%Y-%m-%d %H:%M:%S') | Verifying installations..."
+echo "Python: $(python --version 2>&1)"
+echo "Java: $(java -version 2>&1 | head -n 1)"
+echo "PySpark: $(python -c 'import pyspark; print(pyspark.__version__)' 2>&1)"
+echo "Spark-submit: $(spark-submit --version 2>&1 | head -n 1)"
+echo "MySQL client: $(mysql --version 2>&1)"
 
-log "✅ EC2 setup completed successfully"
-log "Full installation log available at $LOG_FILE"
+echo "$(date '+%Y-%m-%d %H:%M:%S') | EC2 setup completed successfully"
+echo "Full log available at /tmp/setup.log"
 
-log "Rebooting system to apply environment changes..."
-sudo reboot
+# ---------------------------
+# Reboot to apply environment changes
+# ---------------------------
+echo "$(date '+%Y-%m-%d %H:%M:%S') | Rebooting system to apply environment changes..."
+reboot
