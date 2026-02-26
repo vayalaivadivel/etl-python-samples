@@ -28,9 +28,9 @@ sudo apt update -y && sudo apt install -y python3-pip
 pip3 install --upgrade pip
 
 if [ -f "$REQUIREMENTS_FILE" ]; then
-    pip3 install -r "$REQUIREMENTS_FILE"
+    pip3 install --upgrade -r "$REQUIREMENTS_FILE"
 else
-    echo "⚠️  requirements.txt not found. Skipping dependency installation."
+    echo "⚠️ requirements.txt not found. Skipping dependency installation."
 fi
 
 # -----------------------------
