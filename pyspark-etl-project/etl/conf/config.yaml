@@ -2,8 +2,8 @@ rds:
   host: lowcost-mysql.cmx8sca08m6d.us-east-1.rds.amazonaws.com
   port: 3306
   database: etl
-  user: admin
-  password: Admin12345!  # ideally override with GitHub Secrets
+  user: *******
+  password: ****!  # ideally override with GitHub Secrets
 
 s3:
   bucket: vadivel-data-engineer  
