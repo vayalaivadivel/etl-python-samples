@@ -17,12 +17,12 @@ apt update -y
 apt install -y python3-pip wget curl openjdk-17-jdk git unzip tar
 
 # -----------------------------
-# 2️⃣ Install Spark (robust)
+# 2️⃣ Download and install Spark (robust)
 # -----------------------------
 if [ ! -d "$SPARK_HOME" ]; then
     echo "Installing Apache Spark..."
     SPARK_TGZ="/tmp/spark-${SPARK_VERSION}-bin-hadoop${HADOOP_VERSION}.tgz"
-
+    
     # Download with retries
     wget --tries=5 --timeout=30 -O $SPARK_TGZ https://downloads.apache.org/spark/spark-${SPARK_VERSION}/spark-${SPARK_VERSION}-bin-hadoop${HADOOP_VERSION}.tgz
 
@@ -30,7 +30,7 @@ if [ ! -d "$SPARK_HOME" ]; then
     sudo tar -xzf $SPARK_TGZ -C /opt
     sudo mv /opt/spark-${SPARK_VERSION}-bin-hadoop${HADOOP_VERSION} $SPARK_HOME
 
-    # Fix permissions
+    # Fix ownership & permissions
     sudo chown -R ubuntu:ubuntu $SPARK_HOME
     sudo chmod -R 755 $SPARK_HOME
 fi
@@ -44,7 +44,7 @@ grep -qxF "export SPARK_HOME=$SPARK_HOME" $BASHRC || echo "export SPARK_HOME=$SP
 grep -qxF 'export PATH=$JAVA_HOME/bin:$SPARK_HOME/bin:$PATH' $BASHRC || echo 'export PATH=$JAVA_HOME/bin:$SPARK_HOME/bin:$PATH' >> $BASHRC
 
 # -----------------------------
-# 4️⃣ Export environment for current session
+# 4️⃣ Apply environment for current session
 # -----------------------------
 export JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64
 export SPARK_HOME=$SPARK_HOME
@@ -58,7 +58,7 @@ mkdir -p $LOG_DIR
 chown -R ubuntu:ubuntu $ETL_DIR $LOG_DIR
 
 # -----------------------------
-# 6️⃣ Install Python packages for ETL
+# 6️⃣ Install Python packages for ETL (optional)
 # -----------------------------
 pip3 install --upgrade pip
 pip3 install pyspark boto3 pandas
