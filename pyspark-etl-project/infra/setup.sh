@@ -2,31 +2,23 @@
 set -e
 
 # ---------------------------
-# Log file for full output
+# Log file
 # ---------------------------
 LOG_FILE="/tmp/setup.log"
-echo "EC2 setup started at $(date)" > $LOG_FILE
+echo "$(date '+%Y-%m-%d %H:%M:%S') | EC2 setup started" > $LOG_FILE
 
-# Helper function to echo and log
+# Helper function to log with timestamp
 log() {
-    echo "$1"
-    echo "$1" >> $LOG_FILE 2>&1
+    echo "$(date '+%Y-%m-%d %H:%M:%S') | $1"
+    echo "$(date '+%Y-%m-%d %H:%M:%S') | $1" >> $LOG_FILE 2>&1
 }
 
 # ---------------------------
-# Update system packages
+# Update system
 # ---------------------------
 log "Updating system packages..."
+sudo yum clean all >> $LOG_FILE 2>&1
 sudo yum update -y >> $LOG_FILE 2>&1
-
-# ---------------------------
-# Install Java 17 (Amazon Corretto)
-# ---------------------------
-if ! java -version &>/dev/null; then
-    log "Installing Java 17..."
-    sudo amazon-linux-extras enable corretto17 -y >> $LOG_FILE 2>&1
-    sudo yum install -y java-17-amazon-corretto-devel >> $LOG_FILE 2>&1
-fi
 
 # ---------------------------
 # Install Python 3
@@ -43,20 +35,29 @@ log "Upgrading pip..."
 pip install --upgrade pip >> $LOG_FILE 2>&1
 
 # ---------------------------
+# Install Java 17
+# ---------------------------
+if ! java -version &>/dev/null; then
+    log "Installing Java 17 (Amazon Corretto)..."
+    sudo amazon-linux-extras enable corretto17 -y >> $LOG_FILE 2>&1 || true
+    sudo yum install -y java-17-amazon-corretto-devel >> $LOG_FILE 2>&1
+fi
+
+# ---------------------------
 # Install PySpark library
 # ---------------------------
 log "Installing PySpark..."
 pip install pyspark >> $LOG_FILE 2>&1
 
 # ---------------------------
-# Install MySQL client / Python connector
+# Install MySQL client + Python connector
 # ---------------------------
 log "Installing MySQL client and PyMySQL..."
 sudo yum install -y mysql >> $LOG_FILE 2>&1
 pip install PyMySQL==1.1.1 >> $LOG_FILE 2>&1
 
 # ---------------------------
-# Install full Apache Spark CLI for spark-submit
+# Install Spark CLI (spark-submit)
 # ---------------------------
 SPARK_VERSION="3.5.1"
 HADOOP_VERSION="3"
@@ -87,5 +88,8 @@ log "✅ PySpark version: $(python -c 'import pyspark; print(pyspark.__version__
 log "✅ Spark-submit version: $(spark-submit --version 2>&1 | head -n 1)"
 log "✅ MySQL client version: $(mysql --version 2>&1)"
 
-log "✅ EC2 setup completed successfully."
-log "Full log is saved at $LOG_FILE"
+log "✅ EC2 setup completed successfully"
+log "Full installation log available at $LOG_FILE"
+
+log "Rebooting system to apply environment changes..."
+sudo reboot
