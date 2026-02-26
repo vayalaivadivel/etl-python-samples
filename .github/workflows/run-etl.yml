@@ -24,25 +24,16 @@ jobs:
         ssh -o StrictHostKeyChecking=no ubuntu@$EC2_IP "mkdir -p ~/pyspark-etl-project"
         scp -o StrictHostKeyChecking=no -r pyspark-etl-project/etl ubuntu@$EC2_IP:~/pyspark-etl-project/
 
-    - name: Install Python dependencies on EC2
-      run: |
-        ssh -o StrictHostKeyChecking=no ubuntu@$EC2_IP << 'EOF'
-          set -e
-          cd ~/pyspark-etl-project/etl
-          echo "Installing Python dependencies..."
-          pip3 install --user -r requirements.txt
-        EOF
-
     - name: Run PySpark ETL on EC2 with logs
       run: |
         ssh -o StrictHostKeyChecking=no ubuntu@$EC2_IP << 'EOF'
           set -e
           cd ~/pyspark-etl-project/etl
 
-          # Create logs folder if missing
+          # Create logs folder
           mkdir -p logs
 
-          # Generate timestamped log file
+          # Timestamped log file
           TIMESTAMP=$(date +%F_%H%M%S)
           LOG_FILE="logs/etl_${TIMESTAMP}.log"
 
@@ -59,5 +50,17 @@ jobs:
             exit 1
           fi
 
-          echo "ETL log path: $PWD/$LOG_FILE"
-        EOF
+          echo "$LOG_FILE"
+        EOF > last_log_path.txt
+
+    - name: Download ETL log from EC2
+      run: |
+        LOG_FILE=$(cat last_log_path.txt)
+        mkdir -p etl_logs
+        scp -o StrictHostKeyChecking=no ubuntu@$EC2_IP:~/pyspark-etl-project/etl/$LOG_FILE ./etl_logs/
+
+    - name: Upload ETL log as artifact
+      uses: actions/upload-artifact@v3
+      with:
+        name: etl-log
+        path: etl_logs/
