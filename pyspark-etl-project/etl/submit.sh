@@ -1,32 +1,36 @@
 #!/bin/bash
+set -euo pipefail
 
-# Navigate to ETL folder
-cd ~/pyspark-etl-project/etl || exit 1
+echo "===== STARTING PYSPARK ETL ====="
 
-# Create logs folder if missing
-mkdir -p logs
+PROJECT_DIR="$HOME/pyspark-etl-project/etl"
+cd "$PROJECT_DIR" || {
+  echo "Project directory not found!"
+  exit 1
+}
 
-# Ensure MySQL JDBC jar exists (download if missing)
+# Create logs + jars folders
+mkdir -p logs jars
+
+# MySQL JDBC jar
 JAR_PATH="jars/mysql-connector-j-9.4.0.jar"
-mkdir -p jars
+
 if [ ! -f "$JAR_PATH" ]; then
     echo "Downloading MySQL 9.4.0 JDBC driver..."
-    wget -O "$JAR_PATH" https://repo1.maven.org/maven2/mysql/mysql-connector-j/9.4.0/mysql-connector-j-9.4.0.jar
+    wget -q -O "$JAR_PATH" \
+      https://repo1.maven.org/maven2/mysql/mysql-connector-j/9.4.0/mysql-connector-j-9.4.0.jar
+    echo "Download complete."
 fi
 
-# Run PySpark ETL
+# Timestamp log
 TIMESTAMP=$(date +%F_%H%M%S)
 LOG_FILE="logs/etl_${TIMESTAMP}.log"
 
-echo "Starting ETL at $(date)..."
+echo "Running spark-submit..."
 spark-submit \
     --jars "$JAR_PATH" \
     src/load_s3_to_rds.py \
     > "$LOG_FILE" 2>&1
 
-if [ $? -eq 0 ]; then
-    echo "ETL completed successfully. Logs: $LOG_FILE"
-else
-    echo "ETL failed. Check logs: $LOG_FILE"
-    exit 1
-fi
+echo "===== ETL FINISHED SUCCESSFULLY ====="
+echo "Log file: $PROJECT_DIR/$LOG_FILE"

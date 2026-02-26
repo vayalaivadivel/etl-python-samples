@@ -21,24 +21,13 @@ jobs:
 
     - name: Copy ETL project to EC2
       run: |
-        echo "Creating project folder on EC2..."
         ssh -o StrictHostKeyChecking=no ubuntu@$EC2_IP "mkdir -p ~/pyspark-etl-project"
-
-        echo "Copying ETL code to EC2..."
         scp -o StrictHostKeyChecking=no -r pyspark-etl-project/etl ubuntu@$EC2_IP:~/pyspark-etl-project/
-
-    - name: Install Python dependencies
-      run: |
-        echo "Installing Python dependencies on EC2..."
-        ssh -o StrictHostKeyChecking=no ubuntu@$EC2_IP \
-          "pip3 install --user -r ~/pyspark-etl-project/etl/requirements.txt"
 
     - name: Run PySpark ETL on EC2
       run: |
-        echo "Starting PySpark ETL..."
         ssh -o StrictHostKeyChecking=no ubuntu@$EC2_IP << 'EOF'
-          set -e   # Exit immediately if any command fails
-          
+          set -e
           cd ~/pyspark-etl-project/etl
 
           echo "Running spark-submit..."
