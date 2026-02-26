@@ -1,2 +1,5 @@
+pyspark
 sqlalchemy
 pymysql
+boto3
+pyyaml
