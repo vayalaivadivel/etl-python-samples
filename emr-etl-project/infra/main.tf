@@ -207,18 +207,6 @@ resource "aws_s3_bucket" "emr_temp_bucket" {
   }
 }
 
-# =============================================
-# Temporary S3 Bucket for EMR Serverless
-# =============================================
-resource "aws_s3_bucket" "emr_temp_bucket" {
-  bucket = "vadivel-emr-temp-${var.env}"
-
-  tags = {
-    Name        = "EMR Temporary Bucket ${var.env}"
-    Environment = var.env
-  }
-}
-
 # Lifecycle rule to auto delete temporary files
 resource "aws_s3_bucket_lifecycle_configuration" "emr_temp_bucket_lifecycle" {
   bucket = aws_s3_bucket.emr_temp_bucket.id
