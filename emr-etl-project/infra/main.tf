@@ -60,11 +60,11 @@ resource "aws_route_table_association" "public_assoc2" {
 # ---------------------------
 resource "aws_s3_bucket" "etl_bucket" {
   bucket = "pyspark-etl-scripts-${var.env}"
-  acl    = "private"
 
-  tags = { Name = "pyspark-etl-scripts-${var.env}" }
+  tags = {
+    Name = "pyspark-etl-scripts-${var.env}"
+  }
 }
-
 
 # ---------------------------
 # EMR Serverless Spark
@@ -108,9 +108,12 @@ resource "aws_security_group" "rds_sg" {
   }
 }
 
-# ---------------------------
-# RDS MySQL Instance
-# ---------------------------
+# Optional ACL
+resource "aws_s3_bucket_acl" "etl_bucket_acl" {
+  bucket = aws_s3_bucket.etl_bucket.id
+  acl    = "private"
+}
+
 resource "aws_db_instance" "mysql_rds" {
   identifier              = "etl-mysql-${var.env}"
   engine                  = "mysql"
@@ -121,19 +124,18 @@ resource "aws_db_instance" "mysql_rds" {
 
   db_name                 = var.db_name
   username                = var.rds_username
-  password                = var.rds_password   # use secrets manager in real prod
+  password                = var.rds_password
 
   publicly_accessible     = true
   skip_final_snapshot     = true
   vpc_security_group_ids  = [aws_security_group.rds_sg.id]
-
-  backup_retention_period = 0  # 🔥 Disable backup to save cost
+  backup_retention_period = 0
   multi_az                = false
+  db_subnet_group_name    = aws_db_subnet_group.rds_subnet.name
 
-  db_subnet_group_name = aws_db_subnet_group.rds_subnet.name
   tags = {
-  tags = { Name = "etl-mysql-rds-${var.env}" }
-}
+    Name = "etl-mysql-rds-${var.env}"
+  }
 }
 
 
