@@ -44,11 +44,13 @@ jobs:
 
         echo "Current EMR state: $STATUS"
 
-        if [[ "$STATUS" == "CREATED" || "$STATUS" == "STOPPED" ]]; then
+        if [[ "$STATUS" == "CREATED" || "$STATUS" == "STOPPED" || "$STATUS" == "TERMINATED" ]]; then
           echo "Starting EMR Serverless application..."
 
           aws emr-serverless start-application \
             --application-id $EMR_APP_ID
+
+          echo "Waiting for application to start..."
 
           aws emr-serverless wait application-started \
             --application-id $EMR_APP_ID
