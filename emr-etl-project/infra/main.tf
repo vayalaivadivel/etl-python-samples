@@ -65,6 +65,7 @@ resource "aws_security_group" "rds_sg" {
   description = "Allow MySQL inbound"
   vpc_id      = aws_vpc.main.id
 
+  # Allow local IP (for manual testing)
   ingress {
     from_port   = 3306
     to_port     = 3306
@@ -105,15 +106,39 @@ resource "aws_db_instance" "mysql_rds" {
 # =============================================
 # EMR Serverless Spark
 # =============================================
+# EMR Serverless security group
+resource "aws_security_group" "emr_sg" {
+  name        = "emr-serverless-sg-${var.env}"
+  description = "EMR Serverless SG"
+  vpc_id      = aws_vpc.main.id
+
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+}
+
+# Add EMR SG to RDS ingress for EMR access
+resource "aws_security_group_rule" "emr_to_rds" {
+  type              = "ingress"
+  from_port         = 3306
+  to_port           = 3306
+  protocol          = "tcp"
+  security_group_id = aws_security_group.rds_sg.id
+  source_security_group_id = aws_security_group.emr_sg.id
+}
+
+# EMR Serverless application
 resource "aws_emrserverless_application" "spark_app" {
   name          = "etl-spark-app-${var.env}"
-  release_label = "emr-7.3.0"  # supported Spark 3.5.1 release
+  release_label = "emr-7.3.0"
   type          = "SPARK"
 
-  # ------------- REQUIRED NETWORK CONFIG -------------
   network_configuration {
     subnet_ids         = [aws_subnet.public1.id, aws_subnet.public2.id]
-    security_group_ids = [aws_security_group.rds_sg.id]  # or create a dedicated SG for EMR
+    security_group_ids = [aws_security_group.emr_sg.id]
   }
 
   maximum_capacity {
@@ -122,13 +147,11 @@ resource "aws_emrserverless_application" "spark_app" {
     disk   = "50 GB"
   }
 
-  tags = {
-    Environment = var.env
-  }
+  tags = { Environment = var.env }
 }
 
 # =============================================
-# IAM Role for EMR Serverless (limited S3 access)
+# IAM Role for EMR Serverless
 # =============================================
 resource "aws_iam_role" "emr_s3_rds_role" {
   name = "emr-serverless-s3-rds-role-${var.env}"

@@ -11,23 +11,37 @@ jobs:
       AWS_REGION: us-east-1
       EMR_APP_ID: ${{ secrets.EMR_APP_ID }}
       EMR_EXEC_ROLE_ARN: ${{ secrets.EMR_EXEC_ROLE_ARN }}
-      SCRIPT_URL: https://github.com/vayalaivadivel/etl-python-samples/tree/main/emr-etl-project/etl/conf/etl/src/load_s3_to_rds.py
-      CONFIG_URL: https://github.com/vayalaivadivel/etl-python-samples/tree/main/emr-etl-project/etl/conf/config.yaml
+      S3_BUCKET: vadivel-data-engineer
+      S3_KEY_PREFIX: my-company-list
 
     steps:
     - name: Checkout repository
       uses: actions/checkout@v3
 
+    - name: Configure AWS CLI
+      uses: aws-actions/configure-aws-credentials@v3
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: ${{ env.AWS_REGION }}
+
+    - name: Upload ETL code and config to S3
+      run: |
+        echo "Uploading ETL code and config to s3://${S3_BUCKET}/${S3_KEY_PREFIX}/"
+        aws s3 cp emr-etl-project/etl/src/load_s3_to_rds.py s3://${S3_BUCKET}/${S3_KEY_PREFIX}/
+        aws s3 cp emr-etl-project/etl/conf/config.yaml s3://${S3_BUCKET}/${S3_KEY_PREFIX}/
+
     - name: Submit PySpark job to EMR Serverless
       run: |
+        echo "Starting EMR Serverless job..."
         aws emr-serverless start-job-run \
           --application-id $EMR_APP_ID \
           --execution-role-arn $EMR_EXEC_ROLE_ARN \
           --release-label emr-6.16.0 \
           --job-driver '{
             "sparkSubmit": {
-              "entryPoint": "'"$SCRIPT_URL"'",
-              "entryPointArguments": ["'"$CONFIG_URL"'"],
+              "entryPoint": "s3a://'${S3_BUCKET}'/'${S3_KEY_PREFIX}'/load_s3_to_rds.py",
+              "entryPointArguments": ["s3a://'${S3_BUCKET}'/'${S3_KEY_PREFIX}'/config.yaml"],
               "sparkSubmitParameters": "--conf spark.hadoop.fs.s3a.impl=org.apache.hadoop.fs.s3a.S3AFileSystem"
             }
           }' \
