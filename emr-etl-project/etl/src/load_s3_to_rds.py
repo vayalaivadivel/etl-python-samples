@@ -3,8 +3,6 @@ import os
 import yaml
 from pyspark.sql import SparkSession, functions as F
 from datetime import datetime
-import boto3
-from botocore.exceptions import ClientError
 import traceback
 
 # -----------------------------
@@ -29,66 +27,56 @@ try:
         config = yaml.safe_load(f)
 
     # -----------------------------
-    # S3 configuration
+    # CSV file location
     # -----------------------------
-    s3_bucket = config["s3"]["bucket"]
-    s3_key = config["s3"]["key"]
-    s3_path = f"s3a://{s3_bucket}/{s3_key}"
+    csv_file = config.get("csv_file", "data/my-company-list.csv")
+
+    if not os.path.exists(csv_file):
+        raise FileNotFoundError(f"CSV file not found at {csv_file}")
+    
+    log(f"CSV file found: {csv_file}")
 
     # -----------------------------
-    # Verify S3 bucket access
+    # RDS configuration (dynamic)
     # -----------------------------
-    s3_client = boto3.client("s3")
-
-    try:
-        s3_client.head_bucket(Bucket=s3_bucket)
-        log(f"Access verified for bucket {s3_bucket}")
-    except ClientError as e:
-        log(f"S3 access error: {e}")
-        raise
-
-    # -----------------------------
-    # RDS configuration
-    # -----------------------------
-    rds = config["rds"]
-
-    rds_user = os.getenv("MYSQL_USER", rds["user"])
-    rds_password = os.getenv("MYSQL_PASSWORD", rds["password"])
-    rds_host = os.getenv("MYSQL_HOST", rds["host"])
+    rds = config.get("rds", {})
+    rds_user = os.getenv("MYSQL_USER", rds.get("user"))
+    rds_password = os.getenv("MYSQL_PASSWORD", rds.get("password"))
+    rds_host = os.getenv("MYSQL_HOST", rds.get("host"))  # <-- use your endpoint here
     rds_port = os.getenv("MYSQL_PORT", str(rds.get("port", 3306)))
-    rds_db = os.getenv("MYSQL_DATABASE", rds["database"])
+    rds_db = os.getenv("MYSQL_DATABASE", rds.get("database"))
+
+    if not all([rds_user, rds_password, rds_host, rds_db]):
+        raise ValueError("Missing RDS connection details!")
 
     jdbc_url = f"jdbc:mysql://{rds_host}:{rds_port}/{rds_db}?rewriteBatchedStatements=true"
-
     connection_properties = {
         "user": rds_user,
         "password": rds_password,
         "driver": "com.mysql.cj.jdbc.Driver"
     }
 
+    log(f"Using RDS endpoint: {rds_host}:{rds_port}/{rds_db}")
+
     # -----------------------------
     # Initialize Spark
     # -----------------------------
     spark = SparkSession.builder \
-        .appName("ETL S3 to RDS") \
-        .config("spark.hadoop.fs.s3a.impl","org.apache.hadoop.fs.s3a.S3AFileSystem") \
-        .config("spark.hadoop.fs.s3a.aws.credentials.provider",
-                "com.amazonaws.auth.InstanceProfileCredentialsProvider") \
+        .appName("ETL CSV to RDS") \
         .getOrCreate()
 
     log("Spark session initialized")
 
     # -----------------------------
-    # Read CSV from S3
+    # Read CSV
     # -----------------------------
     df = spark.read \
         .option("header", True) \
         .option("inferSchema", True) \
-        .csv(s3_path)
+        .csv(csv_file)
 
     df.cache()
-
-    log("Data loaded from S3")
+    log("CSV data loaded into Spark DataFrame")
 
     # -----------------------------
     # Cast columns
@@ -114,11 +102,7 @@ try:
     # -----------------------------
     df.write \
         .mode("append") \
-        .jdbc(
-            url=jdbc_url,
-            table="companies",
-            properties=connection_properties
-        )
+        .jdbc(url=jdbc_url, table="companies", properties=connection_properties)
 
     log("Data successfully written to RDS")
     log("ETL job completed successfully")

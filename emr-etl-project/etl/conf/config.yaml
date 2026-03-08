@@ -1,21 +1,16 @@
 # -----------------------------
-# RDS Database
-# -----------------------------
-rds:
-  host: lowcost-mysql.cmx8sca08m6d.us-east-1.rds.amazonaws.com
-  port: 3306
-  database: etl
-  user: admin
-  password: Admin12345!  # optionally override with environment variables
-
-# -----------------------------
-# S3 Bucket
+# S3 CSV file location
 # -----------------------------
 s3:
-  bucket: vadivel-data-engineer
-  key: my-company-list/company_list_23021239.csv
+  bucket: "vadivel-data-engineer"     # your bucket name
+  key: "my-company-list/my-company-list.csv"  # path to CSV inside bucket
 
-# Optional AWS credentials (if not using IAM role)
-# access_key: YOUR_AWS_ACCESS_KEY
-# secret_key: YOUR_AWS_SECRET_KEY
-# region: us-east-1
+# -----------------------------
+# RDS Configuration
+# -----------------------------
+rds:
+  user: "your_rds_username"       # default username if env var not set
+  password: "your_rds_password"   # default password if env var not set
+  host: "your_rds_endpoint"       # default endpoint if env var not set
+  port: 3306
+  database: "your_database_name"

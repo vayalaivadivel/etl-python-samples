@@ -4,31 +4,31 @@ on:
   workflow_dispatch:
 
 jobs:
-  deploy-etl:
+  emr-etl:
     runs-on: ubuntu-latest
 
     env:
-      EC2_IP: ${{ secrets.EC2_PUBLIC_IP }}
+      AWS_REGION: us-east-1
+      EMR_APP_ID: ${{ secrets.EMR_APP_ID }}
+      EMR_EXEC_ROLE_ARN: ${{ secrets.EMR_EXEC_ROLE_ARN }}
+      SCRIPT_URL: https://github.com/vayalaivadivel/etl-python-samples/tree/main/emr-etl-project/etl/conf/etl/src/load_s3_to_rds.py
+      CONFIG_URL: https://github.com/vayalaivadivel/etl-python-samples/tree/main/emr-etl-project/etl/conf/config.yaml
 
     steps:
     - name: Checkout repository
       uses: actions/checkout@v3
 
-    - name: Setup SSH key
-      uses: webfactory/ssh-agent@v0.9.0
-      with:
-        ssh-private-key: ${{ secrets.EC2_PRIVATE_KEY }}
-
-    - name: Copy ETL project to EC2
+    - name: Submit PySpark job to EMR Serverless
       run: |
-        ssh -o StrictHostKeyChecking=no ubuntu@$EC2_IP "mkdir -p ~/pyspark-etl-project"
-        scp -o StrictHostKeyChecking=no -r pyspark-etl-project/* ubuntu@$EC2_IP:~/pyspark-etl-project/
-
-    - name: Run ETL script on EC2
-      run: |
-        ssh -o StrictHostKeyChecking=no ubuntu@$EC2_IP << 'EOF'
-          set -e
-          cd ~/pyspark-etl-project/etl
-          chmod +x run_etl.sh
-          ./run_etl.sh
-        EOF
+        aws emr-serverless start-job-run \
+          --application-id $EMR_APP_ID \
+          --execution-role-arn $EMR_EXEC_ROLE_ARN \
+          --release-label emr-6.16.0 \
+          --job-driver '{
+            "sparkSubmit": {
+              "entryPoint": "'"$SCRIPT_URL"'",
+              "entryPointArguments": ["'"$CONFIG_URL"'"],
+              "sparkSubmitParameters": "--conf spark.hadoop.fs.s3a.impl=org.apache.hadoop.fs.s3a.S3AFileSystem"
+            }
+          }' \
+          --region $AWS_REGION
