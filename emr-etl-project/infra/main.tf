@@ -107,7 +107,7 @@ resource "aws_db_instance" "mysql_rds" {
 # =============================================
 resource "aws_emrserverless_application" "spark_app" {
   name          = "etl-spark-app-${var.env}"
-  release_label = "emr-6.16.0"
+  release_label = "emr-7.3.0"
   type          = "SPARK"
 
   network_configuration {
@@ -120,7 +120,9 @@ resource "aws_emrserverless_application" "spark_app" {
     disk   = "50 GB"
   }
 
-  tags = { Environment = var.env }
+  tags = {
+    Environment = var.env
+  }
 }
 
 # =============================================
