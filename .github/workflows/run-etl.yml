@@ -34,14 +34,27 @@ jobs:
         aws s3 cp emr-etl-project/etl/src/load_s3_to_rds.py s3://$TEMP_S3_BUCKET/$JOB_PREFIX/
         aws s3 cp emr-etl-project/etl/conf/config.yaml s3://$TEMP_S3_BUCKET/$JOB_PREFIX/
 
-    # 4️⃣ Start EMR Serverless application
-    - name: Start EMR Serverless
+    # 4️⃣ Ensure EMR Serverless application is running
+    - name: Ensure EMR Serverless is running
       run: |
-        aws emr-serverless start-application \
-          --application-id $EMR_APP_ID
+        STATUS=$(aws emr-serverless get-application \
+          --application-id $EMR_APP_ID \
+          --query 'application.state' \
+          --output text)
 
-        aws emr-serverless wait application-started \
-          --application-id $EMR_APP_ID
+        echo "Current EMR state: $STATUS"
+
+        if [[ "$STATUS" == "CREATED" || "$STATUS" == "STOPPED" ]]; then
+          echo "Starting EMR Serverless application..."
+
+          aws emr-serverless start-application \
+            --application-id $EMR_APP_ID
+
+          aws emr-serverless wait application-started \
+            --application-id $EMR_APP_ID
+        else
+          echo "Application already running or starting"
+        fi
 
     # 5️⃣ Submit Spark job
     - name: Submit ETL Job
