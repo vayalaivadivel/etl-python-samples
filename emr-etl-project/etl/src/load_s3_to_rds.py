@@ -18,16 +18,10 @@ args = parser.parse_args()
 config_path = args.config
 
 # -----------------------------
-# Prepare logs
+# Simple logging
 # -----------------------------
-os.makedirs("logs", exist_ok=True)
-timestamp = datetime.now().strftime("%Y-%m-%d_%H%M%S")
-log_file = f"logs/etl_{timestamp}.log"
-
 def log(msg):
-    with open(log_file, "a") as f:
-        f.write(f"{datetime.now()} - {msg}\n")
-    print(msg)
+    print(f"{datetime.now()} - {msg}")
 
 try:
     log("Starting ETL job...")
@@ -65,6 +59,7 @@ try:
     rds_db = os.getenv("MYSQL_DATABASE", rds["database"])
 
     jdbc_url = f"jdbc:mysql://{rds_host}:{rds_port}/{rds_db}?rewriteBatchedStatements=true"
+
     connection_properties = {
         "user": rds_user,
         "password": rds_password,
@@ -77,8 +72,10 @@ try:
     spark = SparkSession.builder \
         .appName("ETL S3 to RDS") \
         .config("spark.hadoop.fs.s3a.impl", "org.apache.hadoop.fs.s3a.S3AFileSystem") \
-        .config("spark.hadoop.fs.s3a.aws.credentials.provider",
-                "com.amazonaws.auth.InstanceProfileCredentialsProvider") \
+        .config(
+            "spark.hadoop.fs.s3a.aws.credentials.provider",
+            "com.amazonaws.auth.DefaultAWSCredentialsProviderChain"
+        ) \
         .getOrCreate()
 
     log("Spark session initialized")
@@ -88,6 +85,7 @@ try:
     # -----------------------------
     df = spark.read.option("header", True).option("inferSchema", True).csv(s3_path)
     df.cache()
+
     log("Data loaded from S3")
 
     # -----------------------------
@@ -106,12 +104,18 @@ try:
     for col_name, col_type in cast_columns.items():
         if col_name in df.columns:
             df = df.withColumn(col_name, F.col(col_name).cast(col_type))
+
     log("Column casting completed")
 
     # -----------------------------
     # Write to MySQL RDS
     # -----------------------------
-    df.write.mode("append").jdbc(url=jdbc_url, table="companies", properties=connection_properties)
+    df.write.mode("append").jdbc(
+        url=jdbc_url,
+        table="companies",
+        properties=connection_properties
+    )
+
     log("Data successfully written to RDS")
     log("ETL job completed successfully")
 

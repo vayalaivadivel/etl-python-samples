@@ -11,76 +11,85 @@ jobs:
       AWS_REGION: us-east-1
       EMR_APP_ID: ${{ secrets.EMR_APP_ID }}
       EMR_EXEC_ROLE_ARN: ${{ secrets.EMR_EXEC_ROLE_ARN }}
-      TEMP_S3_BUCKET: ${{ secrets.TEMP_S3_BUCKET }} # A temporary bucket for the job
+      TEMP_S3_BUCKET: ${{ secrets.TEMP_S3_BUCKET }}
       JOB_PREFIX: etl-run-${{ github.run_id }}
 
     steps:
-    # 1️⃣ Checkout repo
+
+    # 1️⃣ Checkout repository
     - name: Checkout repository
       uses: actions/checkout@v3
 
-    # 2️⃣ Configure AWS CLI
-    - name: Configure AWS CLI
+    # 2️⃣ Configure AWS credentials
+    - name: Configure AWS credentials
       uses: aws-actions/configure-aws-credentials@v2
       with:
         aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
         aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
         aws-region: ${{ env.AWS_REGION }}
 
-    # 3️⃣ Package PySpark script, config, and requirements
-    - name: Package ETL files
+    # 3️⃣ Upload ETL script and config to S3
+    - name: Upload ETL files
       run: |
-        mkdir -p etl_package
-        cp emr-etl-project/etl/src/load_s3_to_rds.py etl_package/
-        cp emr-etl-project/etl/conf/config.yaml etl_package/
-        cp emr-etl-project/etl/requirements.txt etl_package/
-        cd etl_package
-        zip -r ../etl_package.zip .
-        cd ..
+        aws s3 cp emr-etl-project/etl/src/load_s3_to_rds.py s3://$TEMP_S3_BUCKET/$JOB_PREFIX/
+        aws s3 cp emr-etl-project/etl/conf/config.yaml s3://$TEMP_S3_BUCKET/$JOB_PREFIX/
 
-    # 4️⃣ Upload to temporary S3
-    - name: Upload ETL package to S3
+    # 4️⃣ Start EMR Serverless application
+    - name: Start EMR Serverless
       run: |
-        aws s3 cp etl_package.zip s3://$TEMP_S3_BUCKET/${JOB_PREFIX}/etl_package.zip
+        aws emr-serverless start-application \
+          --application-id $EMR_APP_ID
 
-    # 5️⃣ Start EMR Serverless job
-    - name: Submit PySpark job to EMR Serverless
+        aws emr-serverless wait application-started \
+          --application-id $EMR_APP_ID
+
+    # 5️⃣ Submit Spark job
+    - name: Submit ETL Job
       run: |
         JOB_RUN_ID=$(aws emr-serverless start-job-run \
           --application-id $EMR_APP_ID \
           --execution-role-arn $EMR_EXEC_ROLE_ARN \
           --job-driver '{
             "sparkSubmit": {
-              "entryPoint": "s3://'"$TEMP_S3_BUCKET"'/'"$JOB_PREFIX"'/etl_package.zip",
-              "sparkSubmitParameters": "--conf spark.hadoop.fs.s3a.impl=org.apache.hadoop.fs.s3a.S3AFileSystem --py-files load_s3_to_rds.py --files config.yaml"
+              "entryPoint": "s3://'"$TEMP_S3_BUCKET"'/'"$JOB_PREFIX"'/load_s3_to_rds.py",
+              "entryPointArguments": [
+                "--config",
+                "config.yaml"
+              ],
+              "sparkSubmitParameters": "--files s3://'"$TEMP_S3_BUCKET"'/'"$JOB_PREFIX"'/config.yaml"
             }
           }' \
-          --region $AWS_REGION \
-          --query 'jobRunId' --output text)
-        echo "Started EMR Serverless Job Run: $JOB_RUN_ID"
-        echo "JOB_RUN_ID=$JOB_RUN_ID" >> $GITHUB_ENV
+          --query 'jobRunId' \
+          --output text)
 
-    # 6️⃣ Wait for job to complete and display logs
-    - name: Wait for EMR job completion
+        echo "JOB_RUN_ID=$JOB_RUN_ID" >> $GITHUB_ENV
+        echo "Started Job: $JOB_RUN_ID"
+
+    # 6️⃣ Wait for job completion
+    - name: Wait for job completion
       run: |
         while true; do
-          STATUS=$(aws emr-serverless describe-job-run \
+          STATUS=$(aws emr-serverless get-job-run \
             --application-id $EMR_APP_ID \
             --job-run-id $JOB_RUN_ID \
-            --region $AWS_REGION \
-            --query 'jobRun.state' --output text)
+            --query 'jobRun.state' \
+            --output text)
+
           echo "Job status: $STATUS"
-          if [[ "$STATUS" == "SUCCESS" || "$STATUS" == "FAILED" || "$STATUS" == "CANCELLING" ]]; then
+
+          if [[ "$STATUS" == "SUCCESS" || "$STATUS" == "FAILED" || "$STATUS" == "CANCELLED" ]]; then
             break
           fi
+
           sleep 15
         done
+
         if [[ "$STATUS" != "SUCCESS" ]]; then
-          echo "EMR Serverless job failed with status $STATUS"
+          echo "Job failed"
           exit 1
         fi
 
-    # 7️⃣ Optional: clean up temporary S3 files
-    - name: Cleanup temporary S3
+    # 7️⃣ Cleanup temporary S3 files
+    - name: Cleanup
       run: |
-        aws s3 rm s3://$TEMP_S3_BUCKET/${JOB_PREFIX}/ --recursive
+        aws s3 rm s3://$TEMP_S3_BUCKET/$JOB_PREFIX/ --recursive
