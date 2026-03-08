@@ -1,6 +1,6 @@
-# ---------------------------
-# VPC & Networking
-# ---------------------------
+# =============================================
+# VPC
+# =============================================
 resource "aws_vpc" "main" {
   cidr_block           = var.vpc_cidr
   enable_dns_support   = true
@@ -10,12 +10,13 @@ resource "aws_vpc" "main" {
 
 data "aws_availability_zones" "available" {}
 
+# Public Subnets
 resource "aws_subnet" "public1" {
   vpc_id                  = aws_vpc.main.id
   cidr_block              = var.public_subnet1_cidr
   availability_zone       = data.aws_availability_zones.available.names[0]
   map_public_ip_on_launch = true
-  tags = { Name = "public-subnet1" }
+  tags = { Name = "public-subnet1-${var.env}" }
 }
 
 resource "aws_subnet" "public2" {
@@ -23,12 +24,11 @@ resource "aws_subnet" "public2" {
   cidr_block              = var.public_subnet2_cidr
   availability_zone       = data.aws_availability_zones.available.names[1]
   map_public_ip_on_launch = true
-  tags = { Name = "public-subnet2" }
+  tags = { Name = "public-subnet2-${var.env}" }
 }
 
-resource "aws_internet_gateway" "igw" {
-  vpc_id = aws_vpc.main.id
-}
+# Internet Gateway & Route Table
+resource "aws_internet_gateway" "igw" { vpc_id = aws_vpc.main.id }
 
 resource "aws_route_table" "public_rt" {
   vpc_id = aws_vpc.main.id
@@ -38,7 +38,7 @@ resource "aws_route_table" "public_rt" {
     gateway_id = aws_internet_gateway.igw.id
   }
 
-  tags = { Name = "public-rt1" }
+  tags = { Name = "public-rt-${var.env}" }
 }
 
 resource "aws_route_table_association" "public_assoc1" {
@@ -51,30 +51,17 @@ resource "aws_route_table_association" "public_assoc2" {
   route_table_id = aws_route_table.public_rt.id
 }
 
-# ---------------------------
-# S3 Bucket (for input CSV/VSF files only)
-# ---------------------------
-resource "aws_s3_bucket" "data_bucket" {
-  bucket = "pyspark-etl-data-${var.env}"
-  tags   = { Name = "pyspark-etl-data-${var.env}" }
-}
-
-resource "aws_s3_bucket_acl" "data_bucket_acl" {
-  bucket = aws_s3_bucket.data_bucket.id
-  acl    = "private"
-}
-
-# ---------------------------
+# =============================================
 # RDS MySQL
-# ---------------------------
+# =============================================
 resource "aws_db_subnet_group" "rds_subnet" {
-  name       = "rds-public-subnet-group"
+  name       = "rds-public-subnet-group-${var.env}"
   subnet_ids = [aws_subnet.public1.id, aws_subnet.public2.id]
-  tags       = { Name = "rds-public-subnet-group" }
+  tags       = { Name = "rds-subnet-group-${var.env}" }
 }
 
 resource "aws_security_group" "rds_sg" {
-  name        = "rds-mysql-public-sg"
+  name        = "rds-mysql-sg-${var.env}"
   description = "Allow MySQL inbound"
   vpc_id      = aws_vpc.main.id
 
@@ -115,18 +102,30 @@ resource "aws_db_instance" "mysql_rds" {
   tags = { Name = "etl-mysql-rds-${var.env}" }
 }
 
-# ---------------------------
+# =============================================
 # EMR Serverless Spark
-# ---------------------------
+# =============================================
 resource "aws_emrserverless_application" "spark_app" {
   name          = "etl-spark-app-${var.env}"
   release_label = "emr-6.16.0"
   type          = "SPARK"
+
+  network_configuration {
+    subnet_ids = [aws_subnet.public1.id, aws_subnet.public2.id]
+  }
+
+  maximum_capacity {
+    cpu    = "4 vCPU"
+    memory = "16 GB"
+    disk   = "50 GB"
+  }
+
+  tags = { Environment = var.env }
 }
 
-# ---------------------------
-# IAM Role for EMR Serverless (access S3 + RDS)
-# ---------------------------
+# =============================================
+# IAM Role for EMR Serverless (limited S3 access)
+# =============================================
 resource "aws_iam_role" "emr_s3_rds_role" {
   name = "emr-serverless-s3-rds-role-${var.env}"
 
@@ -142,17 +141,17 @@ resource "aws_iam_role" "emr_s3_rds_role" {
 
 resource "aws_iam_policy" "emr_policy" {
   name        = "EMRServerlessS3RDSPolicy-${var.env}"
-  description = "Allow EMR Serverless to read/write S3 and connect RDS"
+  description = "Allow EMR Serverless to access only the fixed S3 bucket and RDS"
 
   policy = jsonencode({
     Version = "2012-10-17"
     Statement = [
       {
         Effect   = "Allow"
-        Action   = ["s3:GetObject","s3:ListBucket"]
+        Action   = ["s3:GetObject", "s3:ListBucket"]
         Resource = [
-          aws_s3_bucket.data_bucket.arn,
-          "${aws_s3_bucket.data_bucket.arn}/*"
+          "arn:aws:s3:::vadivel-data-engineer",
+          "arn:aws:s3:::vadivel-data-engineer/my-company-list/*"
         ]
       },
       {
