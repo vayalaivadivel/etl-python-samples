@@ -220,7 +220,11 @@ resource "aws_instance" "public_ec2" {
   key_name                    = var.ec2_key_name
   iam_instance_profile        = aws_iam_instance_profile.ec2_instance_profile.name
 
-  user_data = file("setup.sh")  # your bootstrap script
+ user_data = file("spark_etl_setup.sh")
+  root_block_device {
+    volume_size = 20
+    volume_type = "gp3"
+  }
 
   tags = {
     Name = "pyspark-amzn-ec2"
