@@ -107,11 +107,13 @@ resource "aws_db_instance" "mysql_rds" {
 # =============================================
 resource "aws_emrserverless_application" "spark_app" {
   name          = "etl-spark-app-${var.env}"
-  release_label = "emr-7.3.0"
+  release_label = "emr-7.3.0"  # supported Spark 3.5.1 release
   type          = "SPARK"
 
+  # ------------- REQUIRED NETWORK CONFIG -------------
   network_configuration {
-    subnet_ids = [aws_subnet.public1.id, aws_subnet.public2.id]
+    subnet_ids         = [aws_subnet.public1.id, aws_subnet.public2.id]
+    security_group_ids = [aws_security_group.rds_sg.id]  # or create a dedicated SG for EMR
   }
 
   maximum_capacity {
