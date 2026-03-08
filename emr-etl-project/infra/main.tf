@@ -194,3 +194,37 @@ resource "aws_iam_role_policy_attachment" "attach_emr_policy" {
   role       = aws_iam_role.emr_s3_rds_role.name
   policy_arn = aws_iam_policy.emr_policy.arn
 }
+
+# =============================================
+# Temporary S3 Bucket for EMR Serverless
+# =============================================
+resource "aws_s3_bucket" "emr_temp_bucket" {
+  bucket = "vadivel-emr-temp-${var.env}"
+
+  tags = {
+    Name        = "EMR Temporary Bucket ${var.env}"
+    Environment = var.env
+  }
+}
+
+# Optional ACL
+resource "aws_s3_bucket_acl" "emr_temp_bucket_acl" {
+  bucket = aws_s3_bucket.emr_temp_bucket.id
+  acl    = "private"
+}
+
+# Lifecycle rule to auto-delete objects after 1 day
+resource "aws_s3_bucket_lifecycle_configuration" "emr_temp_bucket_lifecycle" {
+  bucket = aws_s3_bucket.emr_temp_bucket.id
+
+  rule {
+    id     = "auto-delete-temp-files"
+    status = "Enabled"
+
+    expiration {
+      days = 1
+    }
+
+    filter {} # apply to all objects
+  }
+}
