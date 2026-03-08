@@ -44,16 +44,30 @@ jobs:
 
         echo "Current EMR state: $STATUS"
 
-        if [[ "$STATUS" == "CREATED" || "$STATUS" == "STOPPED" || "$STATUS" == "TERMINATED" ]]; then
+        if [[ "$STATUS" == "TERMINATED" ]]; then
+          echo "Application is TERMINATED. Resetting..."
+
+          aws emr-serverless stop-application \
+            --application-id $EMR_APP_ID || true
+
+          aws emr-serverless wait application-stopped \
+            --application-id $EMR_APP_ID
+
+          aws emr-serverless start-application \
+            --application-id $EMR_APP_ID
+
+          aws emr-serverless wait application-started \
+            --application-id $EMR_APP_ID
+
+        elif [[ "$STATUS" == "CREATED" || "$STATUS" == "STOPPED" ]]; then
           echo "Starting EMR Serverless application..."
 
           aws emr-serverless start-application \
             --application-id $EMR_APP_ID
 
-          echo "Waiting for application to start..."
-
           aws emr-serverless wait application-started \
             --application-id $EMR_APP_ID
+
         else
           echo "Application already running or starting"
         fi
