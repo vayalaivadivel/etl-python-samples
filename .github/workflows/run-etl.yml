@@ -34,7 +34,6 @@ jobs:
         aws s3 cp emr-etl-project/etl/src/load_s3_to_rds.py s3://$TEMP_S3_BUCKET/$JOB_PREFIX/
         aws s3 cp emr-etl-project/etl/conf/config.yaml s3://$TEMP_S3_BUCKET/$JOB_PREFIX/
 
-    # 4️⃣ Ensure EMR Serverless application is running
     - name: Ensure EMR Serverless is running
       run: |
         STATUS=$(aws emr-serverless get-application \
@@ -45,32 +44,42 @@ jobs:
         echo "Current EMR state: $STATUS"
 
         if [[ "$STATUS" == "TERMINATED" ]]; then
-          echo "Application is TERMINATED. Resetting..."
+          echo "Reactivating application..."
 
-          aws emr-serverless stop-application \
-            --application-id $EMR_APP_ID || true
-
-          aws emr-serverless wait application-stopped \
+          aws emr-serverless update-application \
             --application-id $EMR_APP_ID
-
-          aws emr-serverless start-application \
-            --application-id $EMR_APP_ID
-
-          aws emr-serverless wait application-started \
-            --application-id $EMR_APP_ID
-
-        elif [[ "$STATUS" == "CREATED" || "$STATUS" == "STOPPED" ]]; then
-          echo "Starting EMR Serverless application..."
-
-          aws emr-serverless start-application \
-            --application-id $EMR_APP_ID
-
-          aws emr-serverless wait application-started \
-            --application-id $EMR_APP_ID
-
-        else
-          echo "Application already running or starting"
         fi
+
+        STATUS=$(aws emr-serverless get-application \
+          --application-id $EMR_APP_ID \
+          --query 'application.state' \
+          --output text)
+
+        if [[ "$STATUS" == "CREATED" || "$STATUS" == "STOPPED" ]]; then
+          echo "Starting application..."
+
+          aws emr-serverless start-application \
+            --application-id $EMR_APP_ID
+        fi
+
+        echo "Waiting for EMR to start..."
+
+        for i in {1..30}; do
+          STATUS=$(aws emr-serverless get-application \
+            --application-id $EMR_APP_ID \
+            --query 'application.state' \
+            --output text)
+
+          echo "Current state: $STATUS"
+
+          if [[ "$STATUS" == "STARTED" ]]; then
+            echo "Application is ready"
+            break
+          fi
+
+          sleep 10
+        done
+        
 
     # 5️⃣ Submit Spark job
     - name: Submit ETL Job
