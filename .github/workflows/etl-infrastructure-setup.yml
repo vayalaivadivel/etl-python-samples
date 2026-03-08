@@ -1,4 +1,4 @@
-name: "ETL Infrastructure Setup/Destroy"
+name: "ETL EMR Setup with Python"
 
 on:
   workflow_dispatch:
